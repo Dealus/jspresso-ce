@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -22,8 +22,9 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.commons.collections.map.AbstractReferenceMap;
-import org.apache.commons.collections.map.ReferenceMap;
+import org.apache.commons.collections4.map.AbstractReferenceMap;
+import org.apache.commons.collections4.map.ReferenceMap;
+
 import org.jspresso.framework.model.entity.EntityRegistryException;
 import org.jspresso.framework.model.entity.IEntity;
 import org.jspresso.framework.model.entity.IEntityRegistry;
@@ -31,7 +32,7 @@ import org.jspresso.framework.model.entity.IEntityRegistry;
 /**
  * Basic implementation of an entity registry backed by an HashMap of weak
  * reference values.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public class BasicEntityRegistry implements IEntityRegistry {
@@ -43,11 +44,23 @@ public class BasicEntityRegistry implements IEntityRegistry {
    * Constructs a new {@code BasicEntityRegistry} instance.
    *
    * @param name
-   *          the name of the registry;
+   *     the name of the registry;
    */
   public BasicEntityRegistry(String name) {
+    this(name, new HashMap<Class<? extends IEntity>, Map<Serializable, IEntity>>());
+  }
+
+  /**
+   * Constructs a new {@code BasicEntityRegistry} instance.
+   *
+   * @param name
+   *     the name of the registry;
+   * @param backingStore
+   *     the backing store
+   */
+  public BasicEntityRegistry(String name, Map<Class<? extends IEntity>, Map<Serializable, IEntity>> backingStore) {
     this.name = name;
-    backingStore = new HashMap<>();
+    this.backingStore = backingStore;
   }
 
   /**
@@ -68,9 +81,8 @@ public class BasicEntityRegistry implements IEntityRegistry {
       for (Map.Entry<Class<? extends IEntity>, Map<Serializable, IEntity>> suberclassContractStore : backingStore
           .entrySet()) {
         Class<? extends IEntity> suberClass = suberclassContractStore.getKey();
-        if (suberClass != entityContract
-            && (entityContract.isAssignableFrom(suberClass) || suberClass
-                .isAssignableFrom(entityContract))) {
+        if (suberClass != entityContract && (entityContract.isAssignableFrom(suberClass) || suberClass.isAssignableFrom(
+            entityContract))) {
           contractStore = suberclassContractStore.getValue();
           if (contractStore != null) {
             registeredEntity = contractStore.get(id);
@@ -91,22 +103,19 @@ public class BasicEntityRegistry implements IEntityRegistry {
    */
   @Override
   @SuppressWarnings("unchecked")
-  public void register(Class<? extends IEntity> entityContract,
-      Serializable id, IEntity entity) {
+  public void register(Class<? extends IEntity> entityContract, Serializable id, IEntity entity) {
     IEntity existingRegisteredEntity = get(entityContract, id);
     if (existingRegisteredEntity != null) {
       if (!checkUnicity(entity, existingRegisteredEntity)) {
         throw new EntityRegistryException(
-            "This entity was previously registered with a different instance : "
-                + entityContract.getName() + " [" + entity + "]");
+            "This entity was previously registered with a different instance : " + entityContract.getName() + " ["
+                + entity + "]");
       }
       // do nothing since the entity is already registered.
     } else {
-      Map<Serializable, IEntity> contractStore = backingStore
-          .get(entityContract);
+      Map<Serializable, IEntity> contractStore = backingStore.get(entityContract);
       if (contractStore == null) {
-        contractStore = new ReferenceMap(AbstractReferenceMap.HARD,
-            AbstractReferenceMap.WEAK, true);
+        contractStore = createContractStoreMap();
         backingStore.put(entityContract, contractStore);
       }
       contractStore.put(id, entity);
@@ -116,16 +125,15 @@ public class BasicEntityRegistry implements IEntityRegistry {
   /**
    * Checks that the entity being registered is the &quot;same&quot; that the
    * already registered entity.
-   * 
+   *
    * @param entity
-   *          the entity to test.
+   *     the entity to test.
    * @param existingRegisteredEntity
-   *          the entity with same contract and id being already registered.
+   *     the entity with same contract and id being already registered.
    * @return true if both entity are &quot;same&quot;. Default implementation is
-   *         based on object equality.
+   * based on object equality.
    */
-  protected boolean checkUnicity(IEntity entity,
-      IEntity existingRegisteredEntity) {
+  protected boolean checkUnicity(IEntity entity, IEntity existingRegisteredEntity) {
     return entity == existingRegisteredEntity;
   }
 
@@ -140,8 +148,30 @@ public class BasicEntityRegistry implements IEntityRegistry {
   }
 
   /**
+   * Gets registered entities.
+   *
+   * @return the registered entities
+   */
+  @Override
+  public Map<Class<? extends IEntity>, Map<Serializable, IEntity>> getRegisteredEntities() {
+    Map<Class<? extends IEntity>, Map<Serializable, IEntity>> defensiveBackingStoreCopy = new HashMap<>();
+    for (Map.Entry<Class<? extends IEntity>, Map<Serializable, IEntity>> backingStoreEntry : backingStore.entrySet()) {
+      Map<Serializable, IEntity> defensiveContractStoreCopy = createContractStoreMap();
+      defensiveContractStoreCopy.putAll(backingStoreEntry.getValue());
+      defensiveBackingStoreCopy.put(backingStoreEntry.getKey(), defensiveContractStoreCopy);
+    }
+    return defensiveBackingStoreCopy;
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<Serializable, IEntity> createContractStoreMap() {
+    return new ReferenceMap(AbstractReferenceMap.ReferenceStrength.HARD, AbstractReferenceMap.ReferenceStrength.WEAK,
+        true);
+  }
+
+  /**
    * Gets the name.
-   * 
+   *
    * @return the name.
    */
   public String getName() {

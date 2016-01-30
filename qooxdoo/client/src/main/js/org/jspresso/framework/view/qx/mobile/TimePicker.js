@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2014 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -31,17 +31,20 @@
  */
 
 qx.Class.define("org.jspresso.framework.view.qx.mobile.TimePicker", {
-  extend: qx.ui.mobile.dialog.Picker,
+  extend: qx.ui.mobile.control.Picker,
 
   statics: {
   },
 
-  construct: function (anchor, showSeconds) {
-    this.base(arguments, anchor);
+  construct: function (showSeconds, showMilliseconds) {
+    this.base(arguments);
     this.addSlot(this._createHourPickerSlot());
     this.addSlot(this._createMinutePickerSlot());
     if (showSeconds) {
       this.addSlot(this._createSecondPickerSlot());
+    }
+    if (showMilliseconds) {
+      this.addSlot(this._createMillisecondPickerSlot());
     }
   },
 
@@ -53,7 +56,7 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.TimePicker", {
     _createHourPickerSlot : function() {
       var slotData = [];
       for (var i = 0; i < 24; i++) {
-        slotData.push(org.jspresso.framework.util.format.StringUtils.lpad("" + i, "0", 2));
+        slotData.push({title: org.jspresso.framework.util.format.StringUtils.lpad("" + i, "0", 2)});
       }
       return new qx.data.Array(slotData);
     },
@@ -64,7 +67,7 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.TimePicker", {
     _createMinutePickerSlot : function() {
       var slotData = [];
       for (var i = 0; i < 59; i++) {
-        slotData.push(org.jspresso.framework.util.format.StringUtils.lpad("" + i, "0", 2));
+        slotData.push({title: org.jspresso.framework.util.format.StringUtils.lpad("" + i, "0", 2)});
       }
       return new qx.data.Array(slotData);
     },
@@ -72,10 +75,21 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.TimePicker", {
     /**
      * Creates the picker slot data for seconds.
      */
-    _createSecondPickerSlot : function() {
+    _createSecondPickerSlot: function () {
       var slotData = [];
       for (var i = 0; i < 59; i++) {
-        slotData.push(org.jspresso.framework.util.format.StringUtils.lpad("" + i, "0", 2));
+        slotData.push({title: org.jspresso.framework.util.format.StringUtils.lpad("" + i, "0", 2)});
+      }
+      return new qx.data.Array(slotData);
+    },
+
+    /**
+     * Creates the picker slot data for milliseconds.
+     */
+    _createMillisecondPickerSlot: function () {
+      var slotData = [];
+      for (var i = 0; i < 999; i++) {
+        slotData.push({title: org.jspresso.framework.util.format.StringUtils.lpad("" + i, "0", 3)});
       }
       return new qx.data.Array(slotData);
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -37,15 +37,9 @@ import javax.security.auth.login.FailedLoginException;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
 
-import org.apache.commons.lang.LocaleUtils;
+import org.apache.commons.lang3.LocaleUtils;
 import org.hibernate.HibernateException;
 import org.hibernate.exception.ConstraintViolationException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.dao.ConcurrencyFailureException;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.orm.hibernate4.SessionFactoryUtils;
-
 import org.jspresso.framework.action.ActionContextConstants;
 import org.jspresso.framework.action.ActionException;
 import org.jspresso.framework.action.IAction;
@@ -94,6 +88,11 @@ import org.jspresso.framework.view.action.ActionMap;
 import org.jspresso.framework.view.action.IDisplayableAction;
 import org.jspresso.framework.view.descriptor.IViewDescriptor;
 import org.jspresso.framework.view.descriptor.basic.BasicViewDescriptor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.ConcurrencyFailureException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.hibernate4.SessionFactoryUtils;
 
 /**
  * Base class for frontend application controllers. Frontend controllers are
@@ -105,7 +104,7 @@ import org.jspresso.framework.view.descriptor.basic.BasicViewDescriptor;
  * More than a behavioural adapter, the frontend controller will also be the
  * place where you define the top-level application structure like the workspace
  * list, the name, the application-wide actions, ...
- * 
+ *
  * @author Vincent Vandenschrick
  * @param <E>
  *          the actual gui component type used.
@@ -358,6 +357,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
             displayNextPinnedModule();
           } else {
             displayModule(nextWorkspaceName, nextModule);
+            pinnedModuleDisplayed(nextEntry, false);
           }
         } else {
           displayNextPinnedModule();
@@ -390,6 +390,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
             displayPreviousPinnedModule();
           } else {
             displayModule(previousWorkspaceName, previousModule);
+            pinnedModuleDisplayed(previousEntry, false);
           }
         } else {
           displayPreviousPinnedModule();
@@ -404,7 +405,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Retrieves a pinned module in the backward or forward history and pins it.
-   * 
+   *
    * @param snapshotId
    *          the snapshot id of the module history to display.
    * @return the history entry actually displayed or null if no change.
@@ -449,7 +450,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Displays a workspace.
-   * 
+   *
    * @param workspaceName
    *          the workspace identifier.
    * @param bypassModuleBoundaryActions
@@ -461,19 +462,19 @@ public abstract class AbstractFrontendController<E, F, G> extends
         || ObjectUtils.equals(getSelectedWorkspaceName(), workspaceName)) {
       return;
     }
-    if (bypassModuleBoundaryActions) {
-      Workspace oldSelectedWorkspace = getSelectedWorkspace();
-      if (workspaceName != null) {
-        Workspace workspace = getWorkspace(workspaceName);
-        if (!workspace.isStarted()) {
-          if (workspace.getStartupAction() != null) {
-            Map<String, Object> actionContext = getInitialActionContext();
-            actionContext.put(ActionContextConstants.ACTION_PARAM, workspace);
-            execute(workspace.getStartupAction(), actionContext);
-            workspace.setStarted(true);
-          }
+    Workspace workspace = null;
+    boolean startingWorkspace = false;
+    if (workspaceName != null) {
+      workspace = getWorkspace(workspaceName);
+      if (workspace != null) {
+        startingWorkspace = !workspace.isStarted();
+        if (startingWorkspace) {
+          workspace.setStarted(true);
         }
       }
+    }
+    if (bypassModuleBoundaryActions) {
+      Workspace oldSelectedWorkspace = getSelectedWorkspace();
       this.selectedWorkspaceName = workspaceName;
       firePropertyChange(SELECTED_WORKSPACE, oldSelectedWorkspace, getSelectedWorkspace());
     } else {
@@ -481,6 +482,12 @@ public abstract class AbstractFrontendController<E, F, G> extends
       // so that module boundary actions get triggered
       // see bug #538
       displayModule(workspaceName, getSelectedModule(workspaceName));
+    }
+    // Delay until the end of the very 1st execution. See bug #42.
+    if (workspace != null && startingWorkspace && workspace.getStartupAction() != null) {
+      Map<String, Object> actionContext = getInitialActionContext();
+      actionContext.put(ActionContextConstants.ACTION_PARAM, workspace);
+      execute(workspace.getStartupAction(), actionContext);
     }
   }
 
@@ -501,11 +508,6 @@ public abstract class AbstractFrontendController<E, F, G> extends
         LOG.debug("Trying to dispose a dialog that is not the top one. Ignoring.");
         return false;
       }
-      @SuppressWarnings("unchecked")
-      E componentToFocus = (E) context.get(FrontendAction.COMPONENT_TO_FOCUS);
-      if (componentToFocus != null) {
-        focus(componentToFocus);
-      }
       // preserve action param
       Object actionParam = context.get(ActionContextConstants.ACTION_PARAM);
       context.putAll(savedContext);
@@ -515,6 +517,19 @@ public abstract class AbstractFrontendController<E, F, G> extends
       LOG.debug("Trying to dispose a modal dialog while there is no dialog left.");
     }
     return false;
+  }
+
+  /**
+   * Transfer focus.
+   *
+   * @param context the context
+   */
+  protected void transferFocus(Map<String, Object> context) {
+    @SuppressWarnings("unchecked")
+    E componentToFocus = (E) context.get(FrontendAction.COMPONENT_TO_FOCUS);
+    if (componentToFocus != null) {
+      focus(componentToFocus);
+    }
   }
 
   private boolean isParentOf(E parentView, IView<E> view) {
@@ -1292,7 +1307,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Creates a new login callback handler.
-   * 
+   *
    * @return a new login callback handler
    */
   protected UsernamePasswordHandler createLoginCallbackHandler() {
@@ -1325,7 +1340,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Creates a UsernamePassword handler instance.
-   * 
+   *
    * @return a new UsernamePassword handler instance.
    */
   protected UsernamePasswordHandler createUsernamePasswordHandler() {
@@ -1335,7 +1350,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Reads a client preference.
-   * 
+   *
    * @param key
    *          the key under which the preference as been stored.
    * @return the stored preference or null.
@@ -1350,7 +1365,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Stores a client preference.
-   * 
+   *
    * @param key
    *          the key under which the preference as to be stored.
    * @param value
@@ -1365,7 +1380,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Deletes a client preference.
-   * 
+   *
    * @param key
    *          the key under which the preference is stored.
    */
@@ -1378,7 +1393,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Creates and binds the login view.
-   * 
+   *
    * @return the login view
    */
   protected IView<E> createLoginView() {
@@ -1397,7 +1412,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Creates the module area view to display the modules content.
-   * 
+   *
    * @param workspaceName
    *          the workspace to create the module area view for.
    * @return the the module area view to display the modules content.
@@ -1411,7 +1426,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Creates the workspace action list.
-   * 
+   *
    * @return the workspace action list.
    */
   protected ActionList createWorkspaceActionList() {
@@ -1446,7 +1461,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Creates the workspace action map.
-   * 
+   *
    * @return the workspace action map.
    */
   protected ActionMap createWorkspaceActionMap() {
@@ -1469,7 +1484,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Creates a workspace navigator based on the workspace definition.
-   * 
+   *
    * @param workspaceName
    *          the workspace to create the navigator for.
    * @param workspaceNavigatorViewDescriptor
@@ -1496,8 +1511,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
         navigatorSelectionChanged(workspaceName, (ICompositeValueConnector) event.getSelectedItem());
       }
     });
-    workspaceNavigatorConnectors.put(workspaceName,
-        (ICompositeValueConnector) workspaceNavigatorView.getConnector());
+    workspaceNavigatorConnectors.put(workspaceName, (ICompositeValueConnector) workspaceNavigatorView.getConnector());
     return workspaceNavigatorView;
   }
 
@@ -1523,7 +1537,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Executes a backend action.
-   * 
+   *
    * @param action
    *          the backend action to execute.
    * @param context
@@ -1536,7 +1550,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Executes a frontend action.
-   * 
+   *
    * @param action
    *          the frontend action to execute.
    * @param context
@@ -1549,7 +1563,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Whenever the loginContextName is not configured, creates a default subject.
-   * 
+   *
    * @return the default Subject in case the login configuration is not set.
    */
   protected Subject getAnonymousSubject() {
@@ -1558,7 +1572,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Creates the exit action.
-   * 
+   *
    * @return the exit action.
    */
   @Override
@@ -1576,7 +1590,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the forcedStartingLocale.
-   * 
+   *
    * @return the forcedStartingLocale.
    */
   protected String getForcedStartingLocale() {
@@ -1585,7 +1599,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the iconFactory.
-   * 
+   *
    * @return the iconFactory.
    */
   protected IIconFactory<F> getIconFactory() {
@@ -1594,7 +1608,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the loginCallbackHandler.
-   * 
+   *
    * @return the loginCallbackHandler.
    */
   protected UsernamePasswordHandler getLoginCallbackHandler() {
@@ -1606,7 +1620,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the loginContextName.
-   * 
+   *
    * @return the loginContextName.
    */
   protected String getLoginContextName() {
@@ -1626,7 +1640,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the loginViewDescriptor.
-   * 
+   *
    * @return the loginViewDescriptor.
    */
   protected IViewDescriptor getLoginViewDescriptor() {
@@ -1635,7 +1649,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the onModuleEnterAction.
-   * 
+   *
    * @return the onModuleEnterAction.
    */
   protected IAction getOnModuleEnterAction() {
@@ -1644,7 +1658,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the onModuleStartupAction.
-   * 
+   *
    * @return the onModuleStartupAction.
    */
   protected IAction getOnModuleStartupAction() {
@@ -1653,7 +1667,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the onModuleExitAction.
-   * 
+   *
    * @return the onModuleExitAction.
    */
   protected IAction getOnModuleExitAction() {
@@ -1662,7 +1676,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the selected module.
-   * 
+   *
    * @param workspaceName
    *          the workspace name to query the selected module for.
    * @return the selected module.
@@ -1673,7 +1687,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the workspacesMenuIconImageUrl.
-   * 
+   *
    * @return the workspacesMenuIconImageUrl.
    */
   protected String getWorkspacesMenuIconImageUrl() {
@@ -1747,7 +1761,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
   /**
    * Constructs the context to call the login action. Defaults to
    * {@link AbstractFrontendController#getInitialActionContext()}.
-   * 
+   *
    * @return the login action context.
    */
   protected Map<String, Object> getLoginActionContext() {
@@ -1757,7 +1771,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
   /**
    * Constructs the context to call the startup action. Defaults to
    * {@link AbstractFrontendController#getInitialActionContext()}.
-   * 
+   *
    * @return the startup action context.
    */
   protected Map<String, Object> getStartupActionContext() {
@@ -1776,64 +1790,73 @@ public abstract class AbstractFrontendController<E, F, G> extends
   }
 
   /**
+   * Perform JAAS login.
+   *
+   * @return the logged-in subject or null if login failed.
+   */
+  protected Subject performJAASLogin() {
+    CallbackHandler lch = getLoginCallbackHandler();
+    try {
+      LoginContext lc;
+      try {
+        lc = new LoginContext(getLoginContextName(), lch);
+      } catch (LoginException le) {
+        LOG.error("Cannot create LoginContext.", le);
+        return null;
+      } catch (SecurityException se) {
+        LOG.error("Cannot create LoginContext.", se);
+        return null;
+      }
+      lc.login();
+      return lc.getSubject();
+    } catch (LoginException le) {
+      // le.getCause() is always null, so cannot rely on it.
+      // see bug #1019
+      if (!(le instanceof FailedLoginException)) {
+        String message = le.getMessage();
+        if (message.indexOf(':') > 0) {
+          String exceptionClassName = message.substring(0, message.indexOf(':'));
+          try {
+            if (Throwable.class.isAssignableFrom(Class.forName(exceptionClassName))) {
+              LOG.error("A technical exception occurred on login module.", le);
+            }
+          } catch (ClassNotFoundException ignored) {
+            // ignored.
+          }
+        }
+      }
+      return null;
+    }
+  }
+
+  /**
    * Performs the actual JAAS login.
-   * 
+   *
    * @return true if login succeeded.
    */
   protected boolean performLogin() {
+    Subject subject;
     String lcName = getLoginContextName();
     if (lcName != null) {
-      CallbackHandler lch = getLoginCallbackHandler();
-      try {
-        LoginContext lc;
-        try {
-          lc = new LoginContext(lcName, lch);
-        } catch (LoginException le) {
-          LOG.error("Cannot create LoginContext.", le);
-          return false;
-        } catch (SecurityException se) {
-          LOG.error("Cannot create LoginContext.", se);
-          return false;
-        }
-        lc.login();
-        loggedIn(lc.getSubject());
-      } catch (LoginException le) {
-        // le.getCause() is always null, so cannot rely on it.
-        // see bug #1019
-        if (!(le instanceof FailedLoginException)) {
-          String message = le.getMessage();
-          if (message.indexOf(':') > 0) {
-            String exceptionClassName = message.substring(0,
-                message.indexOf(':'));
-            try {
-              if (Throwable.class.isAssignableFrom(Class
-                  .forName(exceptionClassName))) {
-                LOG.error("A technical exception occurred on login module.", le);
-              }
-            } catch (ClassNotFoundException ignored) {
-              // ignored.
-            }
-          }
-        }
-        if (lch != null) {
-          LOG.info("User {} failed to log in for session {}.",
-              ((UsernamePasswordHandler) lch).getUsername(),
-              getApplicationSession().getId());
-        }
-        return false;
-      }
+      subject = performJAASLogin();
     } else {
-      loggedIn(getAnonymousSubject());
+      subject = getAnonymousSubject();
     }
-    LOG.info("User {} logged in  for session {}.", getApplicationSession()
-        .getUsername(), getApplicationSession().getId());
+    if (subject == null) {
+      LOG.info("User {} failed to log in for session {}.", getLoginCallbackHandler().getUsername(),
+          getApplicationSession().getId());
+      return false;
+    }
+    LOG.info("User {} logged in  for session {}.", getLoginCallbackHandler().getUsername(),
+        getApplicationSession().getId());
+    loggedIn(subject);
     return true;
   }
 
   /**
    * Pins a module in the history navigation thus allowing the user to navigate
    * back.
-   * 
+   *
    * @param workspaceName
    *          the workspace to pin the module for.
    * @param module
@@ -1854,25 +1877,25 @@ public abstract class AbstractFrontendController<E, F, G> extends
       ModuleHistoryEntry historyEntry = new ModuleHistoryEntry(workspaceName,
           module, historyEntryName);
       backwardHistoryEntries.add(historyEntry);
-      modulePinned(historyEntry);
+      pinnedModuleDisplayed(historyEntry, true);
       forwardHistoryEntries.clear();
     }
   }
 
   /**
    * Callback when a module is actually pinned in history.
-   * 
-   * @param historyEntry
-   *          the pinned module history entry.
+   *
+   * @param historyEntry           the pinned module history entry.
+   * @param addToHistory the add to history
    */
-  protected void modulePinned(ModuleHistoryEntry historyEntry) {
+  protected void pinnedModuleDisplayed(ModuleHistoryEntry historyEntry, boolean addToHistory) {
     // NO-OP. Managed by subclasses when needed.
   }
 
   /**
    * Refines the data integrity violation exception to determine the translation
    * key from which the user message will be constructed.
-   * 
+   *
    * @param exception
    *          the DataIntegrityViolationException.
    * @return the translation key to use.
@@ -1899,7 +1922,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
   /**
    * Computes a user friendly exception message if this exception is known and
    * can be cleanly handled by the framework.
-   * 
+   *
    * @param exception
    *          the exception to compute the message for.
    * @return the user friendly message or null if this exception is unexpected.
@@ -2029,7 +2052,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the frameWidth.
-   * 
+   *
    * @return the frameWidth.
    */
   protected Integer getFrameWidth() {
@@ -2039,7 +2062,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
   /**
    * Sets the preferred application frame width. How this dimension is leveraged
    * depends on the UI channel.
-   * 
+   *
    * @param frameWidth
    *          the frameWidth to set.
    */
@@ -2049,7 +2072,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the frameHeight.
-   * 
+   *
    * @return the frameHeight.
    */
   protected Integer getFrameHeight() {
@@ -2059,7 +2082,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
   /**
    * Sets the preferred application frame height. How this dimension is
    * leveraged depends on the UI channel.
-   * 
+   *
    * @param frameHeight
    *          the frameHeight to set.
    */
@@ -2069,7 +2092,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the secondaryActionMap.
-   * 
+   *
    * @return the secondaryActionMap.
    */
   @Override
@@ -2081,7 +2104,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
    * Assigns the view secondary action map. Same rules as the primary action map
    * apply except that actions in this map should be visually distinguished from
    * the main action map, e.g. placed in another toolbar.
-   * 
+   *
    * @param secondaryActionMap
    *          the secondaryActionMap to set.
    */
@@ -2102,7 +2125,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
   /**
    * Encodes username / password into a string for storing. The stored string is
    * used later for "remember me" function.
-   * 
+   *
    * @param username
    *          the user name.
    * @param password
@@ -2133,7 +2156,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
   /**
    * Decodes username / password from a string for restoring into original
    * values. This is used in "remember me" function.
-   * 
+   *
    * @param encodedUserPass
    *          the encoded username/password string.
    * @return an string array of username/password strings
@@ -2170,7 +2193,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the client preferences store.
-   * 
+   *
    * @return the client preferences store.
    */
   protected synchronized IPreferencesStore getClientPreferencesStore() {
@@ -2183,14 +2206,14 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Creates the clientPreferenceStore.
-   * 
+   *
    * @return the clientPreferenceStore.
    */
   protected abstract IPreferencesStore createClientPreferencesStore();
 
   /**
    * Sets the clientPreferenceStore.
-   * 
+   *
    * @param clientPreferencesStore
    *          the clientPreferenceStore to set.
    */
@@ -2340,7 +2363,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Traces unexpected exceptions properly.
-   * 
+   *
    * @param ex
    *          the exception to trace.
    */
@@ -2357,7 +2380,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Gets the checkActionThreadSafety.
-   * 
+   *
    * @return the checkActionThreadSafety.
    */
   public boolean isCheckActionThreadSafety() {
@@ -2366,7 +2389,7 @@ public abstract class AbstractFrontendController<E, F, G> extends
 
   /**
    * Sets the checkActionThreadSafety.
-   * 
+   *
    * @param checkActionThreadSafety
    *          the checkActionThreadSafety to set.
    */

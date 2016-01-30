@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -27,7 +27,7 @@ import org.jspresso.framework.util.lang.StringUtils;
 
 /**
  * Describes an enumerated property containing arbitrary values.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public class BasicEnumerationPropertyDescriptor extends
@@ -78,7 +78,7 @@ public class BasicEnumerationPropertyDescriptor extends
    * <p>
    * Enumeration values are translated in the UI using the following scheme :
    * <i>[enumerationName]_[value]</i>.
-   * 
+   *
    * @param values
    *          the values to set.
    */
@@ -113,5 +113,14 @@ public class BasicEnumerationPropertyDescriptor extends
   @Override
   public boolean isLov() {
     return false;
+  }
+
+  @Override
+  public Object getDefaultValue() {
+    Object defaultValue = super.getDefaultValue();
+    if (defaultValue == null && isMandatory()) {
+      defaultValue = getEnumerationValues().get(0);
+    }
+    return defaultValue;
   }
 }

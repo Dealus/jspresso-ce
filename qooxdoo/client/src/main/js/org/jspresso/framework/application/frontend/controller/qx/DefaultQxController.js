@@ -1,27 +1,28 @@
-/**
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
- * <p>
- * This file is part of the Jspresso framework. Jspresso is free software: you
- * can redistribute it and/or modify it under the terms of the GNU Lesser
- * General Public License as published by the Free Software Foundation, either
- * version 3 of the License, or (at your option) any later version. Jspresso is
- * distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details. You should have received a copy of the GNU Lesser General Public
- * License along with Jspresso. If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
- * @asset(qx/icon/Oxygen/16/actions/document-save.png)
+ *  This file is part of the Jspresso framework.
+ *
+ *  Jspresso is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Jspresso is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
  */
 qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.DefaultQxController", {
 
   extend: org.jspresso.framework.application.frontend.controller.qx.AbstractQxController,
 
-  implement: [
-  ],
+  implement: [],
 
-  statics: {
-  },
+  statics: {},
 
   /**
    * @param remoteController {qx.io.remote.Rpc}
@@ -83,12 +84,11 @@ qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.Defau
       buttonBox.setLayout(new qx.ui.layout.HBox(10, "right"));
 
       var dialogBox = new qx.ui.container.Composite();
-      dialogBox.setLayout(new qx.ui.layout.VBox(10, null, new qx.ui.decoration.Decorator().set({
+      dialogBox.setLayout(new qx.ui.layout.VBox(0, null, new qx.ui.decoration.Decorator().set({
         width: 1
       })));
 
       if (message) {
-        message = org.jspresso.framework.util.html.HtmlUtil.replaceNewlines(message);
         var messageLabel = new qx.ui.basic.Label(message);
         messageLabel.setRich(org.jspresso.framework.util.html.HtmlUtil.isHtml(message));
         dialogBox.add(messageLabel);
@@ -104,12 +104,14 @@ qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.Defau
       } else {
         allActions = actions;
       }
+      var buttons = [];
       for (var i = 0; i < allActions.length; i++) {
         if (allActions[i] instanceof org.jspresso.framework.gui.remote.RAction) {
-          buttonBox.add(this._getViewFactory().createAction(allActions[i]));
+          buttons[i] = this._getViewFactory().createAction(allActions[i]);
         } else {
-          buttonBox.add(allActions[i]);
+          buttons[i] = allActions[i];
         }
+        buttonBox.add(buttons[i]);
       }
       dialogBox.add(buttonBox);
 
@@ -145,12 +147,12 @@ qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.Defau
       this._getViewFactory().setIcon(dialog, icon);
       if (actions.length > 0) {
         dialog.addListener("keypress", function (e) {
-          if (e.getKeyIdentifier() == "Enter" && !qx.ui.core.FocusHandler.getInstance().isFocused(actions[0])
+          if (e.getKeyIdentifier() == "Enter" && !qx.ui.core.FocusHandler.getInstance().isFocused(buttons[0])
               && (!(qx.ui.core.FocusHandler.getInstance().getFocusedWidget() instanceof qx.ui.form.AbstractField)
-                  || qx.ui.core.FocusHandler.getInstance().getFocusedWidget() instanceof qx.ui.form.PasswordField)) {
-            actions[0].focus();
+              || qx.ui.core.FocusHandler.getInstance().getFocusedWidget() instanceof qx.ui.form.PasswordField)) {
+            buttons[0].focus();
             new qx.util.DeferredCall(function () {
-              actions[0].execute(); // and call the default button's
+              buttons[0].execute(); // and call the default button's
             }).schedule();
           }
         });
@@ -176,60 +178,61 @@ qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.Defau
         /** @type {qx.ui.window.Window} */
         var topDialog = this._dialogStack.pop()[0];
         this._getApplication().getRoot().remove(topDialog);
+        topDialog.removeAll();
         topDialog.close();
         topDialog.destroy();
       }
     },
 
+    __createLogoContainer: function (logo) {
+      var logoContainer = new qx.ui.container.Composite(new qx.ui.layout.Dock())
+      logoContainer.setAppearance("logo-container");
+      logoContainer.add(logo, {edge: "center"});
+      return logoContainer;
+    },
+
     /**
-     *
-     * @param applicationFrame {qx.ui.container.Composite}
-     * @param exitAction {org.jspresso.framework.gui.remote.RAction}
-     * @param navigationActions {org.jspresso.framework.gui.remote.RActionList[]}
      * @param actions {org.jspresso.framework.gui.remote.RActionList[]}
+     * @param navigationActions {org.jspresso.framework.gui.remote.RActionList[]}
      * @param helpActions {org.jspresso.framework.gui.remote.RActionList[]}
-     * @return {undefined}
+     * @param exitAction {org.jspresso.framework.gui.remote.RAction}
+     * @return {qx.ui.toolbar.ToolBar}
      *
      */
-    _decorateApplicationFrame: function (applicationFrame, exitAction, navigationActions, actions, helpActions) {
-      //var menuBar = this._createApplicationMenuBar(workspaceActions, actions, helpActions);
-      //applicationFrame.add(menuBar);
+    _createApplicationToolBar: function (actions, navigationActions, helpActions, exitAction) {
       var toolBar = new qx.ui.toolbar.ToolBar();
-      this._getViewFactory().installActionLists(toolBar, navigationActions);
+      toolBar.setAppearance("application-bar");
+
+      // Do not install navigation actions since browser integration works fine.
+      var appNameLabel = new qx.ui.basic.Label();
+      appNameLabel.setAppearance("application-label");
+      this.bind("name", appNameLabel, "value");
+      toolBar.add(appNameLabel);
+      toolBar.addSpacer();
       if (actions) {
         for (var i = 0; i < actions.length; i++) {
           var splitButton = this._getViewFactory().createSplitButton(actions[i]);
+          splitButton.setAppearance("top-splitbutton");
           if (splitButton) {
             toolBar.add(splitButton);
           }
         }
       }
-      //this._getViewFactory().installActionLists(toolBar, actions);
-      toolBar.addSpacer();
-      if (this._getName()) {
-        var appNameLabel = new qx.ui.basic.Label(this._getName());
-        var font = qx.theme.manager.Font.getInstance().resolve("default");
-        font = new qx.bom.Font(16, font.getFamily());
-        font.setBold(true);
-        appNameLabel.setFont(font);
-        appNameLabel.setTextColor("#777777");
-        appNameLabel.setAlignY("middle");
-        toolBar.add(appNameLabel);
-      }
-      toolBar.addSpacer();
       toolBar.add(this._getStatusBar());
       //toolBar.addSpacer();
       if (helpActions) {
         for (var i = 0; i < helpActions.length; i++) {
           var splitButton = this._getViewFactory().createSplitButton(helpActions[i]);
+          splitButton.setAppearance("top-splitbutton");
           if (splitButton) {
             toolBar.add(splitButton);
           }
         }
       }
-      //this._getViewFactory().installActionLists(toolBar, helpActions);
+      exitAction.setStyleName("exit-button");
+      exitAction.setName(null);
       toolBar.add(this._getViewFactory().createAction(exitAction));
-      applicationFrame.add(toolBar);
+      return toolBar;
     },
 
     /**
@@ -251,15 +254,23 @@ qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.Defau
 
       this.__statusBar = new qx.ui.basic.Label();
       this.__statusBar.setVisibility("excluded");
-      this._decorateApplicationFrame(applicationFrame, exitAction, navigationActions, actions, helpActions);
 
-      var workspaceAccordion = new qx.ui.container.Composite(new qx.ui.layout.VBox(5));
       var logo = new qx.ui.basic.Image("logo.png");
-      workspaceAccordion.add(logo, {flex: 1});
+      logo.setAppearance("logo");
+
+      var workspaceAccordion = new qx.ui.container.Composite(new qx.ui.layout.VBox());
+      workspaceAccordion.setAppearance("application-accordion");
+
+      var logoContainer = this.__createLogoContainer(logo);
+      workspaceAccordion.add(logoContainer);
+
       this.__workspaceAccordionGroup = new qx.ui.form.RadioGroup();
       this.__workspaceAccordionGroup.setAllowEmptySelection(false);
       for (var i = 0; i < workspaceActions.getActions().length; i++) {
-        var workspacePanel = new org.jspresso.framework.view.qx.EnhancedCollapsiblePanel(workspaceActions.getActions()[i].getName());
+        var workspacePanel = new org.jspresso.framework.view.qx.EnhancedCollapsiblePanel(
+            workspaceActions.getActions()[i].getName());
+        workspacePanel.setAppearance("accordion-section");
+        workspacePanel._getLayout().setSeparator("accordion-section-box");
         if (i == 0) {
           workspacePanel.setValue(true);
         } else {
@@ -277,10 +288,42 @@ qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.Defau
       }
 
       this.__workspaceStack = new qx.ui.container.Stack();
+      this.__workspaceStack.setAppearance("application-panel");
 
       var splitContainer = new qx.ui.splitpane.Pane("horizontal");
-      splitContainer.add(workspaceAccordion, 0.15);
-      splitContainer.add(this.__workspaceStack, 0.85);
+      splitContainer.setAppearance("application-split");
+      splitContainer.add(workspaceAccordion, 0);
+      var workspaceStackWrapper = new qx.ui.container.Composite(new qx.ui.layout.VBox());
+      var toolBar = this._createApplicationToolBar(actions, navigationActions, helpActions, exitAction);
+      workspaceStackWrapper.add(toolBar);
+      /*
+       this.__workspaceStack.syncAppearance();
+       workspaceStackWrapper.setPadding([
+       this.__workspaceStack.getMarginTop(),
+       this.__workspaceStack.getMarginRight(),
+       this.__workspaceStack.getMarginBottom(),
+       this.__workspaceStack.getMarginLeft()
+       ]);
+       */
+      workspaceStackWrapper.add(this.__workspaceStack, {flex: 1});
+
+      splitContainer.add(workspaceStackWrapper, 1);
+      var forwardStates = {"collapsed": true};
+      splitContainer._forwardStates = forwardStates;
+      splitContainer.getChildControl("splitter")._forwardStates = forwardStates;
+      var collapser = function (e) {
+        var widthToRestore = workspaceAccordion.getUserData("widthToRestore");
+        if (widthToRestore) {
+          workspaceAccordion.setUserData("widthToRestore", 0);
+          workspaceAccordion.setWidth(widthToRestore);
+          splitContainer.removeState("collapsed");
+        } else {
+          workspaceAccordion.setUserData("widthToRestore", workspaceAccordion.getSizeHint().width);
+          workspaceAccordion.setWidth(0);
+          splitContainer.addState("collapsed");
+        }
+      };
+      splitContainer.getBlocker().addListener("tap", collapser);
 
       applicationFrame.add(splitContainer, {flex: 1});
       if (secondaryActions && secondaryActions.length > 0) {
@@ -320,9 +363,11 @@ qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.Defau
         workspaceViewUI.setUserData("workspaceName", workspaceName);
         this.__workspaceStack.add(workspaceViewUI);
         if (workspaceNavigator) {
+          workspaceNavigator.setStyleName("workspace-tree");
           var workspaceNavigatorUI = this.createComponent(workspaceNavigator);
           if (workspaceNavigatorUI instanceof qx.ui.tree.Tree) {
             workspaceNavigatorUI.setHideRoot(true);
+            //workspaceNavigatorUI.setAppearance("workspace-tree");
           }
           var existingChildren = this.__workspaceAccordionGroup.getChildren();
           var existingChild;
@@ -378,9 +423,13 @@ qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.Defau
      */
     createMessageDialogContent: function (messageCommand) {
       var message = messageCommand.getMessage();
-      message = org.jspresso.framework.util.html.HtmlUtil.replaceNewlines(message);
-      message = org.jspresso.framework.util.html.HtmlUtil.toHtml(org.jspresso.framework.util.html.HtmlUtil.preformat(message));
+      if (!org.jspresso.framework.util.html.HtmlUtil.isHtml(message)) {
+        message = org.jspresso.framework.util.html.HtmlUtil.sanitizeHtml(message);
+        message = org.jspresso.framework.util.html.HtmlUtil.replaceNewlines(message);
+        message = org.jspresso.framework.util.html.HtmlUtil.toHtml(message);
+      }
       var messageComponent = new qx.ui.basic.Atom(message);
+      messageComponent.setSelectable(true);
       messageComponent.setRich(org.jspresso.framework.util.html.HtmlUtil.isHtml(message));
       this._getViewFactory().setIcon(messageComponent, messageCommand.getMessageIcon());
       if (messageCommand
@@ -576,13 +625,11 @@ qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.Defau
       this._getApplication().getRoot().add(uploadDialog);
 
       var uploadForm = new uploadwidget.UploadForm('uploadForm', uploadCommand.getFileUrl());
-      uploadForm.set({
-        decorator: "main",
-        padding: 8
-      });
+      uploadForm.setAppearance("upload-form");
       uploadForm.setLayout(new qx.ui.layout.VBox(10));
 
-      var uploadField = new uploadwidget.UploadField('uploadFile', 'Select File', 'icon/16/actions/document-save.png');
+      var uploadField = new uploadwidget.UploadField('uploadFile', 'Select File',
+          'org/jspresso/framework/cloud_upload.png');
       uploadForm.add(uploadField);
 
       uploadDialog.add(uploadForm, {flex: 1});
@@ -798,6 +845,7 @@ qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.Defau
           decodedFragment[tmp[0]] = tmp[1];
         }
         if (decodedFragment.snapshotId && decodedFragment.snapshotId != this.__lastReceivedSnapshotId) {
+          this.__lastReceivedSnapshotId = decodedFragment.snapshotId;
           var command = new org.jspresso.framework.application.frontend.command.remote.RemoteHistoryDisplayCommand();
           command.setSnapshotId(decodedFragment.snapshotId);
           this.registerCommand(command);

@@ -3,7 +3,7 @@
   <parent>
     <groupId>org.jspresso.framework</groupId>
     <artifactId>jspresso-root</artifactId>
-    <version>4.1-SNAPSHOT</version>
+    <version>4.3-SNAPSHOT</version>
     <relativePath>../../root/pom.xml</relativePath>
   </parent>
   <artifactId>jspresso-app-launch-remote</artifactId>
@@ -27,12 +27,12 @@
       <artifactId>jspresso-qooxdoo-server</artifactId>
     </dependency>
     <dependency>
-      <groupId>commons-lang</groupId>
-      <artifactId>commons-lang</artifactId>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-log4j12</artifactId>
+      <artifactId>slf4j-api</artifactId>
     </dependency>
     <dependency>
       <groupId>javax.servlet</groupId>

@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.jspresso.maven</groupId>
     <artifactId>jspresso-maven</artifactId>
-    <version>4.1-SNAPSHOT</version>
+    <version>4.3-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
@@ -38,10 +38,6 @@
     <dependency>
       <groupId>org.apache.maven</groupId>
       <artifactId>maven-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.googlecode.slf4j-maven-plugin-log</groupId>
-      <artifactId>slf4j-maven-plugin-log</artifactId>
     </dependency>
   </dependencies>
 

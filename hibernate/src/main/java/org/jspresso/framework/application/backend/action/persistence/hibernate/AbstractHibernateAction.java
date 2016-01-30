@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2014 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -44,7 +44,7 @@ public abstract class AbstractHibernateAction extends BackendAction {
 
   /**
    * Performs necessary cleanings when an entity or component is deleted.
-   * 
+   *
    * @param component
    *          the deleted entity or component.
    * @param context
@@ -58,8 +58,9 @@ public abstract class AbstractHibernateAction extends BackendAction {
    * @throws NoSuchMethodException
    *           whenever this kind of exception occurs.
    */
+  @Override
   protected void cleanRelationshipsOnDeletion(IComponent component,
-      Map<String, Object> context, boolean dryRun)
+                                              Map<String, Object> context, boolean dryRun)
       throws IllegalAccessException, InvocationTargetException,
       NoSuchMethodException {
     getController(context).cleanRelationshipsOnDeletion(component, dryRun);
@@ -75,7 +76,7 @@ public abstract class AbstractHibernateAction extends BackendAction {
 
   /**
    * Gets the hibernateTemplate.
-   * 
+   *
    * @param context
    *          the action context.
    * @return the hibernateTemplate.
@@ -86,12 +87,13 @@ public abstract class AbstractHibernateAction extends BackendAction {
 
   /**
    * Reloads an entity in hibernate.
-   * 
+   *
    * @param entity
    *          the entity to reload.
    * @param context
    *          the action context.
    */
+  @Override
   protected void reloadEntity(IEntity entity, Map<String, Object> context) {
     getController(context).reload(entity);
   }

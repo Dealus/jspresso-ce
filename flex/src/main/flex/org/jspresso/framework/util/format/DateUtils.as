@@ -1,8 +1,20 @@
-/**
- * Copyright (c) 2009 Scott Bailey. All rights reserved.
- * <p>
- * This file comes from Scott Bailey blog-post.
- * http://scottrbailey.wordpress.com/2009/05/28/parsing-dates-flex-as3
+/*
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
+ *
+ *  This file is part of the Jspresso framework.
+ *
+ *  Jspresso is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Jspresso is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.jspresso.framework.util.format {
 
@@ -147,11 +159,11 @@ public class DateUtils {
     var isMil:Boolean = false;
     //standard time regex
     var matches:Array;
-    var reg:RegExp = /^(1[012]|[1-9])(:[0-5]\d)?(:[0-5]\d)?( ?[AaPp][Mm]?)?$/;
+    var reg:RegExp = /^(1[012]|[1-9])(:[0-5]\d)?(:[0-5]\d)?(.?\d{3})?( ?[AaPp][Mm]?)?$/;
     matches = reg.exec(value);
     if (!matches) {
       //military time regex
-      reg = /^(2[0-4]|1\d|0?\d)(:?[0-5]\d)?(:?[0-5]\d)?$/;
+      reg = /^(2[0-4]|1\d|0?\d)(:?[0-5]\d)?(:?[0-5]\d)?(.?\d{3})?$/;
       isMil = true;
       matches = reg.exec(value);
     }
@@ -163,11 +175,12 @@ public class DateUtils {
       hours: Number(matches[1]),
       minutes: matches[2] ? Number(String(matches[2]).replace(':', '')) : 0,
       seconds: matches[3] ? Number(String(matches[3]).replace(':', '')) : 0,
+      milliseconds: matches[4] ? Number(String(matches[4]).replace('.', '')) : 0,
       ampm: null
     };
     if (isMil) {
       //processing military format
-      dt.setHours(time.hours, time.minutes, time.seconds);
+      dt.setHours(time.hours, time.minutes, time.seconds, time.milliseconds);
     } else {
       //processing common format
       if (matches[4]) {
@@ -183,7 +196,7 @@ public class DateUtils {
         time.hours = time.hours < guessPMBelow ? time.hours + 12 : time.hours;
       }
     }
-    dt.setHours(time.hours, time.minutes, time.seconds);
+    dt.setHours(time.hours, time.minutes, time.seconds, time.milliseconds);
     return dt;
   }
 
@@ -223,6 +236,15 @@ public class DateUtils {
     }
   }
 
+  public static function toMilliseconds(value:Object):Number {
+    var sec:Number = toSeconds(value);
+    if (sec == -1) {
+      return -1;
+    } else {
+      return sec * 1000;
+    }
+  }
+
   public static function toHours(value:Object):Number {
     var sec:Number = toSeconds(value);
     if (sec == -1) {
@@ -243,7 +265,7 @@ public class DateUtils {
 
   public static function fromDateDto(source:DateDto):Date {
     if (source) {
-      return new Date(source.year, source.month, source.date, source.hour, source.minute, source.second);
+      return new Date(source.year, source.month, source.date, source.hour, source.minute, source.second, source.millisecond);
     }
     return null;
   }
@@ -257,6 +279,7 @@ public class DateUtils {
       dateDto.hour = source.hours;
       dateDto.minute = source.minutes;
       dateDto.second = source.seconds;
+      dateDto.millisecond = source.milliseconds;
       return dateDto;
     }
     return null;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -58,7 +58,7 @@ import chrriis.dj.nativeswing.swtimpl.components.JFlashPlayer;
 /**
  * Default implementation of a mock swing frontend controller. This
  * implementation is usable "as-is".
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public class MockSwingController extends
@@ -166,6 +166,7 @@ public class MockSwingController extends
       if (actionWindow instanceof JDialog) {
         actionWindow.dispose();
       }
+      transferFocus(context);
       return true;
     }
     return false;
@@ -190,14 +191,14 @@ public class MockSwingController extends
     String userFriendlyExceptionMessage = computeUserFriendlyExceptionMessage(ex);
     Component sourceComponent = null;
     if (userFriendlyExceptionMessage != null) {
-      JOptionPane.showMessageDialog(sourceComponent, HtmlHelper
+      JOptionPane.showMessageDialog(null, HtmlHelper
           .toHtml(HtmlHelper.emphasis(HtmlHelper
               .escapeForHTML(userFriendlyExceptionMessage))),
           getTranslation("error", getLocale()), JOptionPane.ERROR_MESSAGE,
           getIconFactory().getErrorIcon(getIconFactory().getLargeIconSize()));
     } else {
       traceUnexpectedException(ex);
-      JErrorDialog dialog = JErrorDialog.createInstance(sourceComponent, this,
+      JErrorDialog dialog = JErrorDialog.createInstance(null, this,
           getLocale());
       dialog.setMessageIcon(getIconFactory().getErrorIcon(
           getIconFactory().getMediumIconSize()));

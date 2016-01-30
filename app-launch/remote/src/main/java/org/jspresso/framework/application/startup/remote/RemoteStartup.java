@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -18,6 +18,7 @@
  */
 package org.jspresso.framework.application.startup.remote;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -25,7 +26,7 @@ import java.util.TimeZone;
 
 import javax.servlet.http.HttpSession;
 
-import org.apache.commons.lang.LocaleUtils;
+import org.apache.commons.lang3.LocaleUtils;
 import org.jspresso.framework.application.frontend.IFrontendController;
 import org.jspresso.framework.application.frontend.command.remote.IRemoteCommandHandler;
 import org.jspresso.framework.application.frontend.command.remote.RemoteCommand;
@@ -48,7 +49,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Default remote startup class.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public abstract class RemoteStartup extends
@@ -127,7 +128,7 @@ public abstract class RemoteStartup extends
 
   /**
    * Starts the remote application passing it the client locale.
-   * 
+   *
    * @param startCommand
    *          the start command wrapping the various client start parameters.
    * @return the commands to be executed by the client peer on startup.
@@ -144,7 +145,8 @@ public abstract class RemoteStartup extends
             new Object[] {
               controller.getI18nName(controller, locale)
             }, locale));
-        return Collections.singletonList((RemoteCommand) errorMessage);
+        // Do not return the singleton list directly since subclasses might add commands to it.
+        return new ArrayList<>(Collections.singleton((RemoteCommand) errorMessage));
       }
       dupSessionNotifiedOnce = false;
       setStartupLocale(locale);
@@ -156,7 +158,7 @@ public abstract class RemoteStartup extends
       } else {
         String[] availableIds = TimeZone.getAvailableIDs(startCommand
             .getTimezoneOffset());
-        if (availableIds != null && availableIds.length > 0) {
+        if (availableIds.length > 0) {
           for (int i = 0; i < availableIds.length && clientTz == null; i++) {
             TimeZone tz = TimeZone.getTimeZone(availableIds[i]);
             if (tz.useDaylightTime() == serverTimeZone.useDaylightTime()) {
@@ -181,7 +183,8 @@ public abstract class RemoteStartup extends
             "incompatible.client.version", new Object[] {
                 startCommand.getVersion(), Build.getJspressoVersion()
             }, locale));
-        return Collections.singletonList((RemoteCommand) errorMessage);
+        // Do not return the singleton list directly since subclasses might add commands to it.
+        return new ArrayList<>(Collections.singleton((RemoteCommand) errorMessage));
       }
       try {
         return handleCommands(Collections
@@ -197,7 +200,8 @@ public abstract class RemoteStartup extends
       RemoteMessageCommand errorMessage = createErrorMessageCommand();
       errorMessage
           .setMessage("An unexpected error occurred while starting the server. Please contact the application manager.");
-      return Collections.singletonList((RemoteCommand) errorMessage);
+      // Do not return the singleton list directly since subclasses might add commands to it.
+      return new ArrayList<>(Collections.singleton((RemoteCommand) errorMessage));
     }
   }
 
@@ -210,7 +214,7 @@ public abstract class RemoteStartup extends
 
   /**
    * Gets the startupLocale.
-   * 
+   *
    * @return the startupLocale.
    */
   @Override
@@ -220,7 +224,7 @@ public abstract class RemoteStartup extends
 
   /**
    * Sets the startupLocale.
-   * 
+   *
    * @param startupLocale
    *          the startupLocale to set.
    */
@@ -230,7 +234,7 @@ public abstract class RemoteStartup extends
 
   /**
    * Sets the clientTimeZone.
-   * 
+   *
    * @param clientTimeZone
    *          the clientTimeZone to set.
    */
@@ -240,7 +244,7 @@ public abstract class RemoteStartup extends
 
   /**
    * Gets the clientTimeZone.
-   * 
+   *
    * @return the clientTimeZone.
    */
   @Override
@@ -263,7 +267,7 @@ public abstract class RemoteStartup extends
 
   /**
    * Gets the dupSessionDetectionEnabled.
-   * 
+   *
    * @return the dupSessionDetectionEnabled.
    */
   public boolean isDupSessionDetectionEnabled() {
@@ -283,7 +287,7 @@ public abstract class RemoteStartup extends
 
   /**
    * Sets the dupSessionDetectionEnabled.
-   * 
+   *
    * @param dupSessionDetectionEnabled
    *          the dupSessionDetectionEnabled to set.
    */

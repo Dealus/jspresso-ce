@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -18,6 +18,7 @@
  */
 package org.jspresso.framework.application.frontend.action.module;
 
+import java.util.List;
 import java.util.Map;
 
 import org.jspresso.framework.action.IActionHandler;
@@ -29,7 +30,7 @@ import org.jspresso.framework.application.model.Workspace;
  * Displays a module, and the corresponding workspace if necessary based on
  * their names. It can be used as startup action to select and display a module
  * when the application launches.
- * 
+ *
  * @author Vincent Vandenschrick
  * @param <E>
  *          the actual gui component type used.
@@ -64,17 +65,12 @@ public class ModuleSelectionAction<E, F, G> extends FrontendAction<E, F, G> {
       if (ws != null && getController(context).isAccessGranted(ws)) {
         try {
           getController(context).pushToSecurityContext(ws);
-          for (Module m : ws.getModules()) {
-            try {
-              getController(context).pushToSecurityContext(m);
-              if (moName.equals(m.getName())) {
-                if (getController(context).isAccessGranted(m)) {
-                  getController(context).displayModule(wsName, m);
-                }
+          List<Module> modules = ws.getModules();
+          if (modules != null) {
+            for (Module m : modules) {
+              if (displayModule(wsName, moName, m, context)) {
                 break;
               }
-            } finally {
-              getController(context).restoreLastSecurityContextSnapshot();
             }
           }
         } finally {
@@ -85,9 +81,32 @@ public class ModuleSelectionAction<E, F, G> extends FrontendAction<E, F, G> {
     return super.execute(actionHandler, context);
   }
 
+  private boolean displayModule(String wsName, String moName, Module module, Map<String, Object> context) {
+    try {
+      getController(context).pushToSecurityContext(module);
+      if (moName.equals(module.getName())) {
+        if (getController(context).isAccessGranted(module)) {
+          getController(context).displayModule(wsName, module);
+        }
+        return true;
+      }
+      List<Module> subModules = module.getSubModules();
+      if (subModules != null) {
+        for (Module m : subModules) {
+          if (displayModule(wsName, moName, m, context)) {
+            return true;
+          }
+        }
+      }
+    } finally {
+      getController(context).restoreLastSecurityContextSnapshot();
+    }
+    return false;
+  }
+
   /**
    * Configures the name (untranslated) of the module to be displayed.
-   * 
+   *
    * @param moduleName
    *          the moduleName to set.
    */
@@ -97,7 +116,7 @@ public class ModuleSelectionAction<E, F, G> extends FrontendAction<E, F, G> {
 
   /**
    * Configures the name (untranslated) of the workspace to be displayed.
-   * 
+   *
    * @param workspaceName
    *          the workspaceName to set.
    */
@@ -107,24 +126,22 @@ public class ModuleSelectionAction<E, F, G> extends FrontendAction<E, F, G> {
 
   /**
    * Gets the moduleName.
-   * 
+   *
    * @param context
    *          the action context.
    * @return the moduleName.
    */
-  @SuppressWarnings("UnusedParameters")
   protected String getModuleName(Map<String, Object> context) {
     return moduleName;
   }
 
   /**
    * Gets the workspaceName.
-   * 
+   *
    * @param context
    *          the action context.
    * @return the workspaceName.
    */
-  @SuppressWarnings("UnusedParameters")
   protected String getWorkspaceName(Map<String, Object> context) {
     return workspaceName;
   }

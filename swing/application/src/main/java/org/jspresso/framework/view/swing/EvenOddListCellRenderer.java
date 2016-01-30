@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -54,6 +54,8 @@ public class EvenOddListCellRenderer extends DefaultListCellRenderer {
    *     the icon factory.
    * @param cellConnectorKey
    *     the key used to retrieve the child cell connector.
+   * @param displayIcon
+   *     the display icon
    */
   public EvenOddListCellRenderer(IIconFactory<Icon> iconFactory, String cellConnectorKey, boolean displayIcon) {
     super();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -41,7 +41,7 @@ import org.jspresso.framework.util.reflect.ReflectHelper;
 
 /**
  * A utility class for Hibernate.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public final class HibernateHelper {
@@ -87,7 +87,7 @@ public final class HibernateHelper {
 
   /**
    * Test Object equality potentially unwrapping Hibernate proxies.
-   * 
+   *
    * @param e1
    *          the 1st entity to test.
    * @param e2
@@ -111,7 +111,7 @@ public final class HibernateHelper {
 
   /**
    * Computes the Hibernate role name of a persistent collection.
-   * 
+   *
    * @param entityContract
    *          the entity contract owing the collection.
    * @param property
@@ -155,7 +155,7 @@ public final class HibernateHelper {
   /**
    * Ensures that the collection held by a Persistent Set is actually a
    * LinkedHashSet.
-   * 
+   *
    * @param collection
    *          the collection to ensure implementation of.
    */
@@ -183,13 +183,13 @@ public final class HibernateHelper {
    * @param targetSession the session that is targeted to after the dirty states have been
    *          reset or null if none.
    */
-  public static void unsetCollectionHibernateSession(Collection<?> collection, Session targetSession) {
+  public static void unsetCollectionHibernateSession(PersistentCollection collection, Session targetSession) {
     // Whenever the entity has dirty persistent collection, make them
     // clean to workaround a "bug" with hibernate since hibernate cannot
     // re-attach a "dirty" detached collection.
-    if (collection instanceof PersistentCollection) {
+    if (collection != null) {
       if (Hibernate.isInitialized(collection)) {
-        ((PersistentCollection) collection).clearDirty();
+        collection.clearDirty();
       }
       if (collection instanceof AbstractPersistentCollection
           && ((AbstractPersistentCollection) collection).getSession() != null
@@ -197,7 +197,7 @@ public final class HibernateHelper {
         // The following is to avoid to avoid Hibernate exceptions due to
         // re-associating a collection that is already associated with the
         // session.
-        ((PersistentCollection) collection).unsetSession(((AbstractPersistentCollection) collection).getSession());
+        collection.unsetSession(((AbstractPersistentCollection) collection).getSession());
       }
     }
   }

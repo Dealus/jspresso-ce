@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -27,11 +27,12 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AssignableTypeFilter;
 
+import org.jspresso.framework.model.descriptor.IComponentDescriptorProvider;
 import org.jspresso.framework.model.descriptor.IReferencePropertyDescriptor;
 
 /**
  * Helper class for entities utility methods.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public final class EntityHelper {
@@ -53,9 +54,9 @@ public final class EntityHelper {
    *         an inline component.
    */
   public static boolean isInlineComponentReference(
-      IReferencePropertyDescriptor<?> propertyDescriptor) {
-    return !propertyDescriptor.getReferencedDescriptor().isEntity()
-        && !propertyDescriptor.getReferencedDescriptor().isPurelyAbstract();
+      IComponentDescriptorProvider<?> propertyDescriptor) {
+    return !propertyDescriptor.getComponentDescriptor().isEntity()
+        && !propertyDescriptor.getComponentDescriptor().isPurelyAbstract();
   }
 
   /**
@@ -65,6 +66,7 @@ public final class EntityHelper {
    *     the entity contract
    * @return the entity sub contracts
    */
+  @SuppressWarnings("unchecked")
   public static Collection<Class<IEntity>> getEntitySubContracts(Class<IEntity> entityContract) {
     Collection<Class<IEntity>> entitySubContracts = new HashSet<>();
     ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -24,7 +24,7 @@ import net.sf.qooxdoo.rpc.RemoteCallUtils;
 
 /**
  * Subclass of Qooxdoo rpc servlet to handle JSON <-> Java more finely.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public class RpcServlet extends net.sf.qooxdoo.rpc.RpcServlet {
@@ -38,8 +38,9 @@ public class RpcServlet extends net.sf.qooxdoo.rpc.RpcServlet {
    *          the servlet request.
    * @return the context URL.
    */
+  @Override
   protected String getContextURL(HttpServletRequest request) {
-    StringBuffer contextURL = new StringBuffer(getDomainURL(request));
+    StringBuilder contextURL = new StringBuilder(getDomainURL(request));
     // the leading slash is already there.
     String contextPath = request.getContextPath();
     if (contextPath != null && contextPath.length() > 0) {

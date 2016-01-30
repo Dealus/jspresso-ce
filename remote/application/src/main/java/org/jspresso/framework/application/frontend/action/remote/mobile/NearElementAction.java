@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2014 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -37,6 +37,9 @@ public class NearElementAction extends AbstractRemoteAction {
    * The constant NAVIGATION_CONNECTOR_KEY.
    */
   public static final String  NAVIGATION_CONNECTOR_KEY = "NAVIGATION_CONNECTOR_KEY";
+  /**
+   * The constant FETCH_ACTION_KEY.
+   */
   public static final String  FETCH_ACTION_KEY         = "FETCH_ACTION_KEY";
   private             boolean reverse                  = false;
 

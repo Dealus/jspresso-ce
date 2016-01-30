@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -93,7 +93,7 @@
  * @use(org.jspresso.framework.application.frontend.command.remote.RemoteWritabilityCommand)
  * @use(org.jspresso.framework.application.frontend.command.remote.RemoteYesNoCancelCommand)
  * @use(org.jspresso.framework.application.frontend.command.remote.RemoteYesNoCommand)
- *
+ * @use(org.jspresso.framework.application.frontend.command.remote.RemoteErrorMessageCommand)
  */
 
 qx.Class.define("org.jspresso.framework.application.frontend.MobileApplication", {
@@ -108,13 +108,15 @@ qx.Class.define("org.jspresso.framework.application.frontend.MobileApplication",
 
       qx.Class.patch(qx.ui.mobile.form.Input, org.jspresso.framework.patch.MInput);
 
-      qx.Class.patch(qx.data.Array, org.jspresso.framework.patch.MArray);
-
-      if (qx.core.Environment.get("qx.mobile.nativescroll") == false) {
-        qx.Class.patch(qx.ui.mobile.container.Scroll, org.jspresso.framework.patch.MIScroll);
-      } else {
+      if (qx.core.Environment.get("qx.mobile.nativescroll")) {
+        // Fixes horizontal scrolling (graphs for instance)
         qx.Class.patch(qx.ui.mobile.container.Scroll, org.jspresso.framework.patch.MNativeScroll);
+      } else {
+        // Fixes clicks on graphs, hyperlinks, ...
+        qx.Class.patch(qx.ui.mobile.container.Scroll, org.jspresso.framework.patch.MIScroll);
       }
+
+      // Without this patch, back and forth transitions between pages are broken.
       qx.Class.patch(qx.ui.mobile.layout.Card, org.jspresso.framework.patch.MCard);
 
       // Enable logging in debug variant

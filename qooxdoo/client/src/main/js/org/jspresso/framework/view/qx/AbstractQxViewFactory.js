@@ -1,20 +1,20 @@
-/**
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
- * <p>
- * This file is part of the Jspresso framework. Jspresso is free software: you
- * can redistribute it and/or modify it under the terms of the GNU Lesser
- * General Public License as published by the Free Software Foundation, either
- * version 3 of the License, or (at your option) any later version. Jspresso is
- * distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details. You should have received a copy of the GNU Lesser General Public
- * License along with Jspresso. If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
- * @asset(qx/icon/Oxygen/22/actions/dialog-ok.png)
- * @asset(qx/icon/Oxygen/22/actions/dialog-close.png)
- * @asset(qx/icon/Oxygen/22/actions/dialog-cancel.png)
+ *  This file is part of the Jspresso framework.
  *
+ *  Jspresso is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Jspresso is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 qx.Class.define("org.jspresso.framework.view.qx.AbstractQxViewFactory", {
@@ -50,9 +50,13 @@ qx.Class.define("org.jspresso.framework.view.qx.AbstractQxViewFactory", {
     /** @type {Array} */
     __shortTimeFormats: null,
     /** @type {Array} */
+    __longTimeFormats: null,
+    /** @type {Array} */
     __dateTimeFormats: null,
     /** @type {Array} */
     __shortDateTimeFormats: null,
+    /** @type {Array} */
+    __longDateTimeFormats: null,
     /** @type {Integer} */
     __firstDayOfWeek: null,
 
@@ -240,7 +244,7 @@ qx.Class.define("org.jspresso.framework.view.qx.AbstractQxViewFactory", {
     createOkButton: function () {
       var b = this.createButton(this.__actionHandler.translate("ok"), null,
           new org.jspresso.framework.gui.remote.RIcon().set({
-            imageUrlSpec: "qx/icon/Oxygen/22/actions/dialog-ok.png"
+            imageUrlSpec: "org/jspresso/framework/dialog-ok.png"
           }));
       return b;
     },
@@ -251,7 +255,7 @@ qx.Class.define("org.jspresso.framework.view.qx.AbstractQxViewFactory", {
     createCancelButton: function () {
       var b = this.createButton(this.__actionHandler.translate("cancel"), null,
           new org.jspresso.framework.gui.remote.RIcon().set({
-            imageUrlSpec: "qx/icon/Oxygen/22/actions/dialog-cancel.png"
+            imageUrlSpec: "org/jspresso/framework/dialog-cancel.png"
           }));
       return b;
     },
@@ -262,7 +266,7 @@ qx.Class.define("org.jspresso.framework.view.qx.AbstractQxViewFactory", {
     createYesButton: function () {
       var b = this.createButton(this.__actionHandler.translate("yes"), null,
           new org.jspresso.framework.gui.remote.RIcon().set({
-            imageUrlSpec: "qx/icon/Oxygen/22/actions/dialog-ok.png"
+            imageUrlSpec: "org/jspresso/framework/dialog-ok.png"
           }));
       return b;
     },
@@ -273,7 +277,7 @@ qx.Class.define("org.jspresso.framework.view.qx.AbstractQxViewFactory", {
     createNoButton: function () {
       var b = this.createButton(this.__actionHandler.translate("no"), null,
           new org.jspresso.framework.gui.remote.RIcon().set({
-            imageUrlSpec: "qx/icon/Oxygen/22/actions/dialog-close.png"
+            imageUrlSpec: "org/jspresso/framework/dialog-close.png"
           }));
       return b;
     },
@@ -382,7 +386,13 @@ qx.Class.define("org.jspresso.framework.view.qx.AbstractQxViewFactory", {
         }
         if (remoteComponent.getType() == "DATE_TIME") {
           var dateTimeFormat = new org.jspresso.framework.util.format.DateFormatDecorator();
-          if (remoteComponent.getSecondsAware()) {
+          if (remoteComponent.getMillisecondsAware()) {
+            if (!this.__longDateTimeFormats) {
+              this.__longDateTimeFormats = this._createDateFormats(this._createLongDateTimeFormatPatterns());
+            }
+            formatDelegates = formatDelegates.concat(this.__longDateTimeFormats);
+            dateTimeFormat.setFormatDelegates(formatDelegates);
+          } else if (remoteComponent.getSecondsAware()) {
             if (!this.__dateTimeFormats) {
               this.__dateTimeFormats = this._createDateFormats(this._createDateTimeFormatPatterns());
             }
@@ -413,7 +423,12 @@ qx.Class.define("org.jspresso.framework.view.qx.AbstractQxViewFactory", {
           formatDelegates.push(new qx.util.format.DateFormat(remoteComponent.getFormatPattern()));
         }
         var timeFormat = new org.jspresso.framework.util.format.DateFormatDecorator();
-        if (remoteComponent.getSecondsAware()) {
+        if (remoteComponent.getMillisecondsAware()) {
+          if (!this.__longTimeFormats) {
+            this.__longTimeFormats = this._createDateFormats(this._createLongTimeFormatPatterns());
+          }
+          formatDelegates = formatDelegates.concat(this.__longTimeFormats);
+        } else if (remoteComponent.getSecondsAware()) {
           if (!this.__timeFormats) {
             this.__timeFormats = this._createDateFormats(this._createTimeFormatPatterns());
           }
@@ -465,14 +480,28 @@ qx.Class.define("org.jspresso.framework.view.qx.AbstractQxViewFactory", {
       return formatPatterns;
     },
 
+    _createLongTimeFormatPatterns: function () {
+      var formatPatterns = [];
+      formatPatterns.push(qx.locale.Date.getDateTimeFormat("HHmmssSSS", "HH:mm:ss.SSS"));
+      formatPatterns.push(qx.locale.Date.getDateTimeFormat("HHmmss", "HH:mm:ss"));
+      formatPatterns.push(qx.locale.Date.getDateTimeFormat("HHmm", "HH:mm"));
+      formatPatterns.push(qx.locale.Date.getDateTimeFormat("HH", "HH"));
+      return formatPatterns;
+    },
+
     _createDateFormatPatterns: function () {
       var formatPatterns = [];
       var defaultFormatPattern = this._getDatePattern();
       formatPatterns.push(defaultFormatPattern);
+      formatPatterns.push(defaultFormatPattern.replace(/\//g, ""));
       for (var i = defaultFormatPattern.length; i > 0; i--) {
         var subPattern = defaultFormatPattern.substring(0, i);
         if (subPattern.charAt(subPattern.length - 1) == "/") {
-          formatPatterns.push(subPattern.substring(0, subPattern.length - 1));
+          var truncated = subPattern.substring(0, subPattern.length - 1);
+          formatPatterns.push(truncated);
+          if (truncated.indexOf("/") >= 0) {
+            formatPatterns.push(truncated.replace(/\//g, ""));
+          }
         }
       }
       return formatPatterns;
@@ -481,6 +510,19 @@ qx.Class.define("org.jspresso.framework.view.qx.AbstractQxViewFactory", {
     _createDateTimeFormatPatterns: function () {
       var dateFormatPatterns = this._createDateFormatPatterns();
       var timeFormatPatterns = this._createTimeFormatPatterns();
+      var formatPatterns = [];
+      for (var i = 0; i < dateFormatPatterns.length; i++) {
+        for (var j = 0; j < timeFormatPatterns.length; j++) {
+          formatPatterns.push(dateFormatPatterns[i] + " " + timeFormatPatterns[j]);
+        }
+        formatPatterns.push(dateFormatPatterns[i]);
+      }
+      return formatPatterns;
+    },
+
+    _createLongDateTimeFormatPatterns: function () {
+      var dateFormatPatterns = this._createDateFormatPatterns();
+      var timeFormatPatterns = this._createLongTimeFormatPatterns();
       var formatPatterns = [];
       for (var i = 0; i < dateFormatPatterns.length; i++) {
         for (var j = 0; j < timeFormatPatterns.length; j++) {

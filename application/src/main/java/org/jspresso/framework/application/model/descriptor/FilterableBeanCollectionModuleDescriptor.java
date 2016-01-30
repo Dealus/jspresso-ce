@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -26,10 +26,11 @@ import org.jspresso.framework.model.component.IQueryComponent;
 import org.jspresso.framework.model.descriptor.IComponentDescriptor;
 import org.jspresso.framework.model.descriptor.IPropertyDescriptor;
 import org.jspresso.framework.model.descriptor.basic.BasicReferencePropertyDescriptor;
+import org.jspresso.framework.model.descriptor.basic.PageableDescriptor;
 
 /**
  * The model descriptor for filterable bean collection modules.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public class FilterableBeanCollectionModuleDescriptor extends
@@ -76,8 +77,7 @@ public class FilterableBeanCollectionModuleDescriptor extends
     filterDescriptor.setReferencedDescriptor(moduleFilterReferencedDescriptor);
     filterDescriptor.setName(FILTER);
 
-    List<IPropertyDescriptor> propertyDescriptors = new ArrayList<>(
-        getPropertyDescriptors());
+    List<IPropertyDescriptor> propertyDescriptors = new ArrayList<>(getPropertyDescriptors());
     propertyDescriptors.add(filterDescriptor);
 
     setPropertyDescriptors(propertyDescriptors);

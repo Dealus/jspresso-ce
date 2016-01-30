@@ -1,7 +1,5 @@
-package org.jspresso.maven;
-
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -18,6 +16,7 @@ package org.jspresso.maven;
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
  */
+package org.jspresso.maven;
 
 import java.io.File;
 import java.net.URL;
@@ -33,7 +32,6 @@ import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.classworlds.ClassWorld;
 import org.codehaus.plexus.classworlds.realm.ClassRealm;
-import org.slf4j.impl.StaticLoggerBinder;
 
 import org.jspresso.framework.tools.entitygenerator.EntityGenerator;
 
@@ -148,8 +146,6 @@ public class EntityGeneratorMojo extends AbstractMojo {
       sourceDirs = new File[]{new File(project.getBasedir(), "src/main/resources"), new File(project.getBasedir(),
           "target/generated-resources/dsl")};
     }
-    // bind slf4j to maven log
-    StaticLoggerBinder.getSingleton().setLog(getLog());
     if (isChangeDetected()) {
       ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
       //create a new class loading space

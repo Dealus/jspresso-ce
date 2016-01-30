@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -21,7 +21,7 @@ package org.jspresso.framework.util.freemarker;
 import java.util.List;
 
 import freemarker.template.SimpleScalar;
-import freemarker.template.TemplateMethodModel;
+import freemarker.template.TemplateMethodModelEx;
 import freemarker.template.TemplateModel;
 import freemarker.template.TemplateModelException;
 
@@ -29,11 +29,11 @@ import org.jspresso.framework.util.sql.SqlHelper;
 
 /**
  * Infers a SQL column name from a property name.
- * 
+ *
  * @author Vincent Vandenschrick
  * @author Pierre-m Raoul (atao)
  */
-public class GenerateSqlName implements TemplateMethodModel {
+public class GenerateSqlName implements TemplateMethodModelEx {
 
   private SqlHelper.Formatter formatter;
   private SqlHelper.KeyWordProvider keyWordProvider;

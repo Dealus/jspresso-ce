@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -23,7 +23,7 @@ import java.text.ParseException;
 
 import javax.swing.JTextField;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jspresso.framework.util.format.FormatAdapter;
 import org.jspresso.framework.util.format.IFormatter;
 
@@ -98,7 +98,7 @@ public class JFormattedFieldConnector extends JTextFieldConnector {
 
   /**
    * Allows for text reformatting when a non lenient parser is used.
-   * 
+   *
    * @param rawText
    *          the raw text as entered in the text field.
    * @return the text to give to the parser.

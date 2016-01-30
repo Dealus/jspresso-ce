@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -33,13 +33,9 @@ import org.jspresso.framework.model.component.query.ComparableQueryStructure;
 import org.jspresso.framework.model.component.query.EnumQueryStructure;
 import org.jspresso.framework.model.descriptor.IComponentDescriptor;
 import org.jspresso.framework.model.descriptor.IComponentDescriptorProvider;
-import org.jspresso.framework.model.descriptor.IDatePropertyDescriptor;
-import org.jspresso.framework.model.descriptor.IDurationPropertyDescriptor;
-import org.jspresso.framework.model.descriptor.INumberPropertyDescriptor;
 import org.jspresso.framework.model.descriptor.IPropertyDescriptor;
 import org.jspresso.framework.model.descriptor.IQueryComponentDescriptor;
 import org.jspresso.framework.model.descriptor.IReferencePropertyDescriptor;
-import org.jspresso.framework.model.descriptor.ITimePropertyDescriptor;
 import org.jspresso.framework.model.descriptor.query.ComparableQueryStructureDescriptor;
 import org.jspresso.framework.model.descriptor.query.EnumQueryStructureDescriptor;
 import org.jspresso.framework.model.entity.IEntity;
@@ -83,6 +79,9 @@ public class RefQueryComponentDescriptor<E> extends
     this.registry.put((Class<IComponent>) componentContract, (IComponentDescriptor<IComponent>) this);
     this.queryComponentsDescriptorProvider = componentDescriptorProvider;
     this.componentContract = componentContract;
+    if (getI18nNameKey() == null && componentContract != null) {
+      setI18nNameKey(componentContract.getName());
+    }
     Collection<IPropertyDescriptor> propertyDescriptors = new ArrayList<>();
     for (IPropertyDescriptor propertyDescriptor : getQueriedComponentsDescriptor().getPropertyDescriptors()) {
       propertyDescriptors.add(propertyDescriptor.createQueryDescriptor());
@@ -238,10 +237,7 @@ public class RefQueryComponentDescriptor<E> extends
    */
   protected boolean isPropertyFilterComparable(
       IPropertyDescriptor propertyDescriptor) {
-    return propertyDescriptor instanceof INumberPropertyDescriptor
-        || propertyDescriptor instanceof IDatePropertyDescriptor
-        || propertyDescriptor instanceof ITimePropertyDescriptor
-        || propertyDescriptor instanceof IDurationPropertyDescriptor;
+    return propertyDescriptor.isFilterComparable();
   }
 
   /**

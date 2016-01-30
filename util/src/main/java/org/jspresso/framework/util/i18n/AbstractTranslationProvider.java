@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -74,6 +74,14 @@ public abstract class AbstractTranslationProvider implements
   @Override
   public String getShortTimePattern(Locale locale) {
     return getTranslation(TIME_FORMAT_SHORT_KEY, locale);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String getLongTimePattern(Locale locale) {
+    return getTranslation(TIME_FORMAT_LONG_KEY, locale);
   }
 
   /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -25,13 +25,34 @@ import java.util.TimeZone;
 
 /**
  * This is a special enumeration descriptor that holds all available timezones.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public class TimeZoneEnumerationPropertyDescriptor extends
     AbstractEnumerationPropertyDescriptor {
 
   private List<String> enumerationValues;
+
+  /**
+   * Instantiates a new Time zone enumeration property descriptor.
+   */
+  public TimeZoneEnumerationPropertyDescriptor() {
+    enumerationValues = new ArrayList<>();
+    for (String timezoneId : TimeZone.getAvailableIDs()) {
+      if (timezoneId.matches(
+          "(Africa/|America/|Antarctica/|Arctic/|Asia/" + "|Atlantic/|Australia/|Europe/|Indian/|Pacific/).*")) {
+        if (!timezoneId.startsWith("Asia/Riyadh8")) {
+          
+          int i1 = timezoneId.indexOf('/');
+          int i2 = i1<0 ? -1 : timezoneId.indexOf('/', i1+1);
+          
+          if (i2<0)
+            enumerationValues.add(timezoneId);
+        }
+      }
+    }
+    Collections.sort(enumerationValues);
+  }
 
   /**
    * {@inheritDoc}
@@ -48,18 +69,6 @@ public class TimeZoneEnumerationPropertyDescriptor extends
    */
   @Override
   public List<String> getEnumerationValues() {
-    if (enumerationValues == null) {
-      enumerationValues = new ArrayList<>();
-      for (String timezoneId : TimeZone.getAvailableIDs()) {
-        if (timezoneId.matches("(Africa/|America/|Antarctica/|Arctic/|Asia/" +
-            "|Atlantic/|Australia/|Europe/|Indian/|Pacific/).*")) {
-          if (!timezoneId.startsWith("Asia/Riyadh8")) {
-            enumerationValues.add(timezoneId);
-          }
-        }
-      }
-      Collections.sort(enumerationValues);
-    }
     return enumerationValues;
   }
 

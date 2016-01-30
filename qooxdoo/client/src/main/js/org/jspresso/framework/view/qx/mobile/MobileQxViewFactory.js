@@ -1,18 +1,20 @@
-/**
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
- * <p>
- * This file is part of the Jspresso framework. Jspresso is free software: you
- * can redistribute it and/or modify it under the terms of the GNU Lesser
- * General Public License as published by the Free Software Foundation, either
- * version 3 of the License, or (at your option) any later version. Jspresso is
- * distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details. You should have received a copy of the GNU Lesser General Public
- * License along with Jspresso. If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
- * @asset (org/jspresso/framework/mobile/back-mobile.png)
- * @asset (org/jspresso/framework/mobile/my_location-mobile.png)
+ *  This file is part of the Jspresso framework.
+ *
+ *  Jspresso is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Jspresso is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 qx.Class.define("org.jspresso.framework.view.qx.mobile.MobileQxViewFactory", {
@@ -322,6 +324,14 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.MobileQxViewFactory", {
       }
     },
 
+    _getPageEndScroll: function (page) {
+      var pageEndScroll = page.getUserData("pageEndScroll");
+      if (!pageEndScroll) {
+        pageEndScroll = page._getScrollContainer();
+      }
+      return pageEndScroll;
+    },
+
     /**
      * @param page {qx.ui.mobile.page.NavigationPage}
      * @param pageEndAction {org.jspresso.framework.gui.remote.RAction}
@@ -329,22 +339,16 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.MobileQxViewFactory", {
     installPageEndAction: function (page, pageEndAction) {
       if (pageEndAction) {
         page.addListener("initialize", function (e) {
-          var pageEndScroll = page.getUserData("pageEndScroll");
-          if (!pageEndScroll) {
-            pageEndScroll = page._getScrollContainer();
-          }
-          if (qx.core.Environment.get("qx.mobile.nativescroll") == false) {
-            pageEndScroll.addListener("pageEnd", function (e) {
-              this._getActionHandler().execute(pageEndAction);
-            }, this);
-          } else {
-            qx.bom.Event.addNativeListener(pageEndScroll._getContentElement(), "scroll",
-                qx.lang.Function.bind(function (e) {
-                  if ((e.currentTarget.scrollTop + e.currentTarget.clientHeight) > e.currentTarget.scrollHeight - 200) {
-                    this._getActionHandler().execute(pageEndAction);
-                  }
-                }, this));
-          }
+          var pageEndScroll = this._getPageEndScroll(page);
+          pageEndScroll.setWaypointsY(["100%"]);
+          pageEndScroll.addListener("waypoint", function (e) {
+            var data = e.getData();
+            if (data.index == 0 && data.axis == "y" && data.direction == "down") {
+              this._getActionHandler().execute(pageEndAction, null, function () {
+                pageEndScroll.refresh();
+              });
+            }
+          }, this);
         }, this);
       }
     },
@@ -1558,9 +1562,10 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.MobileQxViewFactory", {
       var datePickerButton = this.createButton("...", null, null);
       remoteDateField.getState().bind("writable", datePickerButton, "enabled");
       datePickerButton.removeCssClass("button");
-      var datePicker = new org.jspresso.framework.view.qx.mobile.DatePicker(datePickerButton, this.__monthNames);
-      datePicker.setConfirmButtonCaption(this._getActionHandler().translate("ok"));
-      datePicker.setCancelButtonCaption(this._getActionHandler().translate("cancel"));
+      var datePicker = new org.jspresso.framework.view.qx.mobile.DatePicker(this.__monthNames);
+      var datePickerPopup = new org.jspresso.framework.view.qx.mobile.PickerPopup(datePicker, datePickerButton);
+      datePickerPopup.setConfirmButtonCaption(this._getActionHandler().translate("ok"));
+      datePickerPopup.setCancelButtonCaption(this._getActionHandler().translate("cancel"));
       datePickerButton.addListener("tap", function (e) {
         var current = remoteDateField.getState().getValue();
         if (current) {
@@ -1576,12 +1581,12 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.MobileQxViewFactory", {
         datePicker.setSelectedIndex(2, datePicker.getYearIndex(current.getYear()));
         datePicker.setSelectedIndex(1, current.getMonth());
         datePicker.setSelectedIndex(0, current.getDate() - 1);
-        datePicker.show();
+        datePickerPopup.show();
       }, this);
       var dateFieldWithPicker = new qx.ui.mobile.container.Composite(new qx.ui.mobile.layout.HBox());
       dateFieldWithPicker.add(dateField, {flex: 1});
       dateFieldWithPicker.add(datePickerButton, {flex: 0});
-      datePicker.addListener("confirmSelection", function (e) {
+      datePickerPopup.addListener("confirmSelection", function (e) {
         var current = remoteDateField.getState().getValue();
         if (current) {
           if (current instanceof Date) {
@@ -1593,9 +1598,9 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.MobileQxViewFactory", {
           current.setMinute(0);
           current.setSecond(0);
         }
-        var date = parseInt(e.getData()[0].item);
+        var date = parseInt(e.getData()[0].item.title);
         var month = e.getData()[1].index;
-        var year = parseInt(e.getData()[2].item);
+        var year = parseInt(e.getData()[2].item.title);
         var dateDto = new org.jspresso.framework.util.lang.DateDto();
         dateDto.setYear(year);
         dateDto.setMonth(month);
@@ -1617,10 +1622,11 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.MobileQxViewFactory", {
       var timePickerButton = this.createButton("...", null, null);
       remoteTimeField.getState().bind("writable", timePickerButton, "enabled");
       timePickerButton.removeCssClass("button");
-      var timePicker = new org.jspresso.framework.view.qx.mobile.TimePicker(timePickerButton,
-          remoteTimeField.getSecondsAware());
-      timePicker.setConfirmButtonCaption(this._getActionHandler().translate("ok"));
-      timePicker.setCancelButtonCaption(this._getActionHandler().translate("cancel"));
+      var timePicker = new org.jspresso.framework.view.qx.mobile.TimePicker(remoteTimeField.getSecondsAware(),
+          remoteTimeField.getMillisecondsAware());
+      var timePickerPopup = new org.jspresso.framework.view.qx.mobile.PickerPopup(timePicker, timePickerButton);
+      timePickerPopup.setConfirmButtonCaption(this._getActionHandler().translate("ok"));
+      timePickerPopup.setCancelButtonCaption(this._getActionHandler().translate("cancel"));
       timePickerButton.addListener("tap", function (e) {
         var current = remoteTimeField.getState().getValue();
         if (current) {
@@ -1636,12 +1642,12 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.MobileQxViewFactory", {
         timePicker.setSelectedIndex(0, current.getHour());
         timePicker.setSelectedIndex(1, current.getMinute());
         timePicker.setSelectedIndex(2, current.getSecond());
-        timePicker.show();
+        timePickerPopup.show();
       }, this);
       var timeFieldWithPicker = new qx.ui.mobile.container.Composite(new qx.ui.mobile.layout.HBox());
       timeFieldWithPicker.add(timeField, {flex: 1});
       timeFieldWithPicker.add(timePickerButton, {flex: 0});
-      timePicker.addListener("confirmSelection", function (e) {
+      timePickerPopup.addListener("confirmSelection", function (e) {
         var current = remoteTimeField.getState().getValue();
         if (current) {
           if (current instanceof Date) {
@@ -1650,11 +1656,15 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.MobileQxViewFactory", {
         } else {
           current = org.jspresso.framework.util.format.DateUtils.fromDate(new Date());
         }
-        var hour = parseInt(e.getData()[0].item);
-        var minute = parseInt(e.getData()[1].item);
+        var hour = parseInt(e.getData()[0].item.title);
+        var minute = parseInt(e.getData()[1].item.title);
         var second = 0;
         if (e.getData().length > 2) {
-          second = parseInt(e.getData()[2].item);
+          second = parseInt(e.getData()[2].item.title);
+        }
+        var millisecond = 0;
+        if (e.getData().length > 3) {
+          millisecond = parseInt(e.getData()[3].item.title);
         }
 
         var dateDto = new org.jspresso.framework.util.lang.DateDto();
@@ -1664,6 +1674,7 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.MobileQxViewFactory", {
         dateDto.setHour(hour);
         dateDto.setMinute(minute);
         dateDto.setSecond(second);
+        dateDto.setMillisecond(millisecond);
         remoteTimeField.getState().setValue(dateDto);
       }, this);
       return timeFieldWithPicker;
@@ -1932,6 +1943,7 @@ qx.Class.define("org.jspresso.framework.view.qx.mobile.MobileQxViewFactory", {
       remoteTimeField.setState(remoteDateField.getState());
       remoteTimeField.setToolTip(remoteDateField.getToolTip());
       remoteTimeField.setSecondsAware(remoteDateField.getSecondsAware());
+      remoteTimeField.setMillisecondsAware(remoteDateField.getMillisecondsAware());
       remoteTimeField.useDateDto(true);
       dateTimeField.add(this.createComponent(remoteTimeField, false), {flex: 1});
       return dateTimeField;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -27,7 +27,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * A specialized transaction template that takes care of checking that the unit
  * of work is started when executing a transaction callback.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public class ControllerAwareTransactionTemplate extends TransactionTemplate {
@@ -75,16 +75,24 @@ public class ControllerAwareTransactionTemplate extends TransactionTemplate {
 
       @Override
       public T doInTransaction(TransactionStatus status) {
-        IBackendController backendController = BackendControllerHolder.getCurrentBackendController();
-        if (status.isNewTransaction()) {
-          boolean nested = getPropagationBehavior() == TransactionDefinition
-              .PROPAGATION_REQUIRES_NEW && backendController.isUnitOfWorkActive();
-          backendController.joinTransaction(nested);
-        }
+        joinTransaction(status);
         return action.doInTransaction(status);
       }
     };
     return super.execute(wrapper);
+  }
+
+  /**
+   * Join transaction.
+   *
+   * @param status
+   *     the status
+   */
+  protected void joinTransaction(TransactionStatus status) {
+    IBackendController backendController = BackendControllerHolder.getCurrentBackendController();
+    // In case of 1st Tx or REQUIRES_NEW propagation behaviour, status.isNewTransaction() will be true,
+    // thus instantiating a nested UOW is one is already started.
+    backendController.joinTransaction(status.isNewTransaction());
   }
 
 }

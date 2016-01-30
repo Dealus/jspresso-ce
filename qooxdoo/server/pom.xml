@@ -3,7 +3,7 @@
 	<parent>
 		<groupId>org.jspresso.framework</groupId>
 		<artifactId>jspresso-root</artifactId>
-		<version>4.1-SNAPSHOT</version>
+		<version>4.3-SNAPSHOT</version>
     <relativePath>../../root/pom.xml</relativePath>
 	</parent>
 	<artifactId>jspresso-qooxdoo-server</artifactId>
@@ -18,7 +18,11 @@
       <groupId>org.codehaus.jettison</groupId>
       <artifactId>jettison</artifactId>
     </dependency>
-    <dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-collections4</artifactId>
+		</dependency>
+		<dependency>
       <groupId>javax.servlet</groupId>
       <artifactId>servlet-api</artifactId>
       <scope>provided</scope>

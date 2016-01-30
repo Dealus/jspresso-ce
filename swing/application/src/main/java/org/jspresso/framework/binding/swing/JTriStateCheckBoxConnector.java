@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -23,7 +23,7 @@ import chrriis.dj.swingsuite.JTriStateCheckBox.CheckState;
 
 /**
  * JTriStateCheckbox connector.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public class JTriStateCheckBoxConnector extends
@@ -65,7 +65,7 @@ public class JTriStateCheckBoxConnector extends
     if (aValue == null) {
       getConnectedJComponent().setState(CheckState.INDETERMINATE);
     } else {
-      getConnectedJComponent().setSelected(((Boolean) aValue).booleanValue());
+      getConnectedJComponent().setSelected((Boolean) aValue);
     }
   }
 }

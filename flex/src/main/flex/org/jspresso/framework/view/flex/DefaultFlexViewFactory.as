@@ -1,15 +1,20 @@
-/**
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
- * <p>
- * This file is part of the Jspresso framework. Jspresso is free software: you
- * can redistribute it and/or modify it under the terms of the GNU Lesser
- * General Public License as published by the Free Software Foundation, either
- * version 3 of the License, or (at your option) any later version. Jspresso is
- * distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details. You should have received a copy of the GNU Lesser General Public
- * License along with Jspresso. If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
+ *
+ *  This file is part of the Jspresso framework.
+ *
+ *  Jspresso is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Jspresso is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package org.jspresso.framework.view.flex {
@@ -20,7 +25,7 @@ import flash.events.FocusEvent;
 import flash.events.KeyboardEvent;
 import flash.events.MouseEvent;
 import flash.events.TextEvent;
-import flash.sensors.Geolocation;
+import flash.ui.Keyboard;
 
 import flex.utils.ui.resize.ResizablePanel;
 
@@ -75,6 +80,7 @@ import mx.events.IndexChangedEvent;
 import mx.events.ItemClickEvent;
 import mx.events.ListEvent;
 import mx.events.MenuEvent;
+import mx.events.ResizeEvent;
 import mx.formatters.Formatter;
 import mx.formatters.NumberBase;
 import mx.formatters.NumberBaseRoundType;
@@ -151,7 +157,6 @@ import org.jspresso.framework.util.lang.DateDto;
 import org.jspresso.framework.util.remote.registry.IRemotePeerRegistry;
 import org.openscales.core.Map;
 import org.openscales.core.basetypes.Resolution;
-import org.openscales.core.control.Zoom;
 import org.openscales.core.feature.PointFeature;
 import org.openscales.core.handler.mouse.DragHandler;
 import org.openscales.core.handler.mouse.WheelHandler;
@@ -172,6 +177,7 @@ public class DefaultFlexViewFactory {
   private static const COLUMN_MAX_CHAR_COUNT:int = 20;
   private static const DATE_TEMPLATE:String = "00/00/0000";
   private static const LONG_TIME_TEMPLATE:String = "00:00:00";
+  private static const TIME_TEMPLATE:String = "00:00:00.000";
   private static const SHORT_TIME_TEMPLATE:String = "00:00";
   private static const ICON_WIDTH:int = 24;
   [Embed(source="../../../../../../resources/assets/images/reset-16x16.png")]
@@ -181,6 +187,7 @@ public class DefaultFlexViewFactory {
   private var _commandHandler:IRemoteCommandHandler;
   private var _remoteValueSorter:RemoteValueSorter;
   private var _timeFormatter:DateFormatter;
+  private var _longTimeFormatter:DateFormatter;
   private var _shortTimeFormatter:DateFormatter;
   private var _passwordFormatter:PasswordFormatter;
   private var _lastActionTimestamp:Date = new Date();
@@ -202,6 +209,8 @@ public class DefaultFlexViewFactory {
     _timeFormatter.formatString = "JJ:NN:SS";
     _shortTimeFormatter = new DateFormatter();
     _shortTimeFormatter.formatString = "JJ:NN";
+    _longTimeFormatter = new DateFormatter();
+    _longTimeFormatter.formatString = "JJ:NN:SS.QQQ";
     ToolTipManager.toolTipClass = HtmlToolTip;
   }
 
@@ -540,9 +549,20 @@ public class DefaultFlexViewFactory {
   }
 
   public function createTextInputComponent():TextInput {
-    var tf:EnhancedTextInput = new EnhancedTextInput();
-    tf.preventDefaultButton = true;
-    return tf;
+    var textInput:EnhancedTextInput = new EnhancedTextInput();
+    textInput.preventDefaultButton = true;
+    var blockNewLine:Function = function (event:TextEvent):void {
+      var text:String = event.text;
+      if (isNewline(text)) {
+        event.preventDefault();
+      } else if (endsWithNewline(event.text)) {
+        if (textInput.text == StringUtil.trim(event.text)) {
+          event.preventDefault();
+        }
+      }
+    };
+    textInput.addEventListener(TextEvent.TEXT_INPUT, blockNewLine);
+    return textInput;
   }
 
   public function getIconForComponent(component:UIComponent, rIcon:RIcon):Class {
@@ -664,14 +684,21 @@ public class DefaultFlexViewFactory {
 
   protected function applyComponentPreferredSize(component:UIComponent, preferredSize:Dimension):void {
     if (preferredSize) {
+      // Might be used before the component is actually rendered.
+      setComponentSize(component, preferredSize);
+      // Restore the preferred size once the component is rendered.
       component.addEventListener(FlexEvent.CREATION_COMPLETE, function (e:FlexEvent):void {
-        if (preferredSize.width > 0) {
-          component.width = preferredSize.width;
-        }
-        if (preferredSize.height > 0) {
-          component.height = preferredSize.height;
-        }
+        setComponentSize(component, preferredSize);
       });
+    }
+  }
+
+  private function setComponentSize(component:UIComponent, preferredSize:Dimension):void {
+    if (preferredSize.width > 0) {
+      component.width = preferredSize.width;
+    }
+    if (preferredSize.height > 0) {
+      component.height = preferredSize.height;
     }
   }
 
@@ -865,19 +892,17 @@ public class DefaultFlexViewFactory {
   }
 
   protected function createMap(remoteMap:RMap):UIComponent {
-    var map:Map = new Map();
-    map.size = new Size(1200, 1000);
-    map.projection = "EPSG:900913";
+    var map:Map = new Map(1200, 1000, "EPSG:900913");
     map.center = new Location(2.3470, 48.8590, "EPSG:4326");
     map.resolution = new Resolution(12, "EPSG:900913");
     map.maxExtent = new Bounds(-20037508.34, -20037508.34, 20037508.34, 20037508.34, "EPSG:900913");
 
     var mapnik:Mapnik = new Mapnik("Mapnik");
-    mapnik.maxExtent = new Bounds(-20037508.34, -20037508.34, 20037508.34, 20037508.34, mapnik.projection);
+    // mapnik.maxExtent = new Bounds(-20037508.34, -20037508.34, 20037508.34, 20037508.34, mapnik.projection);
     map.addLayer(mapnik);
 
     var markers:VectorLayer = new VectorLayer("markers");
-    markers.projection = new ProjProjection("EPSG:4326");
+    //markers.projection = new ProjProjection("EPSG:4326");
     markers.generateResolutions(19);
     markers.style = Style.getDefaultPointStyle();
     map.addLayer(markers);
@@ -923,16 +948,12 @@ public class DefaultFlexViewFactory {
     tree.minWidth = 200;
     tree.horizontalScrollPolicy = ScrollPolicy.AUTO;
     tree.verticalScrollPolicy = ScrollPolicy.AUTO;
+    tree.selectionTrackingEnabled = false;
     bindTree(tree, remoteTree.state as RemoteCompositeValueState);
-    if (remoteTree.expanded) {
-      tree.addEventListener(FlexEvent.CREATION_COMPLETE, function (event:FlexEvent):void {
-        expandItem(tree, remoteTree.state as RemoteCompositeValueState, true);
-      });
-    } else {
-      tree.addEventListener(FlexEvent.CREATION_COMPLETE, function (event:FlexEvent):void {
-        expandItem(tree, remoteTree.state as RemoteCompositeValueState, false);
-      });
-    }
+    tree.addEventListener(FlexEvent.CREATION_COMPLETE, function (event:FlexEvent):void {
+      finalizeItems(tree, remoteTree.state as RemoteCompositeValueState, remoteTree.expanded);
+      tree.selectionTrackingEnabled = true;
+    });
     if (remoteTree.rowAction) {
       getRemotePeerRegistry().register(remoteTree.rowAction);
       tree.doubleClickEnabled = true;
@@ -943,16 +964,41 @@ public class DefaultFlexViewFactory {
     return tree;
   }
 
-  protected function expandItem(tree:SelectionTrackingTree, remoteState:RemoteCompositeValueState,
-                                recurse:Boolean):void {
-    tree.expandItem(remoteState, true, true, true);
-    if (recurse) {
-      if (remoteState.children != null) {
-        tree.fixListeners(remoteState.children);
-        for (var i:int = 0; i < remoteState.children.length; i++) {
-          if (remoteState.children[i] is RemoteCompositeValueState) {
-            expandItem(tree, remoteState.children[i], recurse);
+  protected function finalizeItems(tree:SelectionTrackingTree, remoteState:RemoteCompositeValueState,
+                                   expandAll:Boolean):void {
+    try {
+      tree.selectionTrackingEnabled = false;
+      var newSelectedItems:Array = [];
+      tree.expandItem(remoteState, true, true, true);
+      finalizeSubItems(tree, remoteState, expandAll, newSelectedItems);
+      if (!ArrayUtil.areUnorderedArraysEqual(tree.selectedItems, newSelectedItems)) {
+        for each(var item:RemoteCompositeValueState in newSelectedItems) {
+          if (item.parent) {
+            tree.expandItem(item.parent, true);
           }
+        }
+        tree.selectedItems = newSelectedItems;
+      }
+    } finally {
+      tree.selectionTrackingEnabled = true;
+    }
+  }
+
+  private function finalizeSubItems(tree:SelectionTrackingTree, remoteState:RemoteCompositeValueState, expandAll:Boolean,
+                             newSelectedItems:Array):void {
+    if (expandAll) {
+      tree.expandItem(remoteState, true, true, true);
+    }
+    if (remoteState.children != null) {
+      if (remoteState.selectedIndices) {
+        for each(var index:int in remoteState.selectedIndices) {
+          newSelectedItems.push(remoteState.children[index]);
+        }
+      }
+      tree.fixListeners(remoteState.children);
+      for (var i:int = 0; i < remoteState.children.length; i++) {
+        if (remoteState.children[i] is RemoteCompositeValueState) {
+          finalizeSubItems(tree, remoteState.children[i], expandAll, newSelectedItems);
         }
       }
     }
@@ -960,23 +1006,26 @@ public class DefaultFlexViewFactory {
 
   protected function bindTree(tree:SelectionTrackingTree, rootState:RemoteCompositeValueState):void {
     var updateModel:Function = function (selectedItems:Array):void {
-      var parentsOfSelectedNodes:Array = [];
-      var i:int;
-      var node:Object;
-      var parentNode:RemoteCompositeValueState;
-      for (i = 0; i < selectedItems.length; i++) {
-        node = selectedItems[i];
-        parentNode = tree.getParentItem(node);
-        if (parentNode == null && !tree.showRoot) {
-          parentNode = rootState;
-        }
-        if (parentNode != null && parentsOfSelectedNodes.indexOf(parentNode) == -1) {
-          parentsOfSelectedNodes.push(parentNode);
-        }
+      if (!tree.selectionTrackingEnabled) {
+        return;
       }
       var oldSelectionTrackingEnabled:Boolean = tree.selectionTrackingEnabled;
       try {
         tree.selectionTrackingEnabled = false;
+        var parentsOfSelectedNodes:Array = [];
+        var i:int;
+        var node:Object;
+        var parentNode:RemoteCompositeValueState;
+        for (i = 0; i < selectedItems.length; i++) {
+          node = selectedItems[i];
+          parentNode = tree.getParentItem(node);
+          if (parentNode == null && !tree.showRoot) {
+            parentNode = rootState;
+          }
+          if (parentNode != null && parentsOfSelectedNodes.indexOf(parentNode) == -1) {
+            parentsOfSelectedNodes.push(parentNode);
+          }
+        }
         clearStateSelection(rootState, parentsOfSelectedNodes);
         for (i = 0; i < selectedItems.length; i++) {
           node = selectedItems[i];
@@ -1148,13 +1197,13 @@ public class DefaultFlexViewFactory {
         var tf:TextInput = (event.currentTarget as TextInput);
         var inputText:String = tf.text;
         if (inputText != remoteState.value) {
-          if (remoteState.value == null) {
+          if (remoteState.value == null || remoteState.value == "") {
             tf.text = null;
           } else {
             tf.text = remoteState.value.toString();
           }
         }
-      }
+      };
 
       var triggerAction:Function = function (event:Event):void {
         var tf:TextInput = (event.currentTarget as TextInput);
@@ -1164,7 +1213,7 @@ public class DefaultFlexViewFactory {
             remoteState.value = null;
           }
         } else if (inputText != remoteState.value) {
-          if (remoteState.value == null) {
+          if (remoteState.value == null || remoteState.value == "") {
             tf.text = null;
           } else {
             tf.text = remoteState.value.toString();
@@ -1182,8 +1231,20 @@ public class DefaultFlexViewFactory {
       textInput.addEventListener(FlexEvent.ENTER, triggerAction);
       textInput.addEventListener(FocusEvent.MOUSE_FOCUS_CHANGE, triggerAction);
       textInput.addEventListener(FocusEvent.KEY_FOCUS_CHANGE, triggerAction);
-      // Do not trigger action since it might be triggered twice.
-      textInput.addEventListener(FocusEvent.FOCUS_OUT, resetFieldValue);
+      // do not trigger event on focus out. It can produce double LOV dialogs when pressing the enter key.
+      // see bug #32. However, in order to fix bug #15, when editing a table, the listener has to be installed
+      // specifically.
+      // textInput.addEventListener(FocusEvent.FOCUS_OUT, triggerAction);
+      textInput.addEventListener(FocusEvent.FOCUS_OUT, function (event:FocusEvent):void {
+        if (event.relatedObject is DataGrid) {
+          triggerAction(event);
+        }
+      });
+      textInput.addEventListener(KeyboardEvent.KEY_DOWN, function (event:KeyboardEvent):void {
+        if (event.keyCode == Keyboard.ESCAPE) {
+          resetFieldValue(event);
+        }
+      });
     }
   }
 
@@ -1375,8 +1436,8 @@ public class DefaultFlexViewFactory {
     if (remoteBorderContainer.north != null) {
       row = new GridRow();
       row.percentWidth = 100.0;
-//        row.setStyle("borderStyle","solid");
-//        row.setStyle("borderColor","0x00FF00");
+//      row.setStyle("borderStyle","solid");
+//      row.setStyle("borderColor","0x00FF00");
       borderContainer.addChild(row);
 
       cell = new GridItem();
@@ -1504,7 +1565,6 @@ public class DefaultFlexViewFactory {
     for (var i:int = 0; i < remoteCardContainer.cardNames.length; i++) {
       var rCardComponent:RComponent = remoteCardContainer.cards[i] as RComponent;
       var cardName:String = remoteCardContainer.cardNames[i] as String;
-
       addCard(cardContainer, rCardComponent, cardName);
     }
     bindCardContainer(cardContainer, remoteCardContainer.state);
@@ -1955,7 +2015,8 @@ public class DefaultFlexViewFactory {
     var splitContainer:DividedBox = new DividedBox();
     splitContainer.resizeToContent = !(remoteSplitContainer.preferredSize != null
     && (remoteSplitContainer.preferredSize.height > 0 || remoteSplitContainer.preferredSize.width > 0));
-//      splitContainer.liveDragging = true;
+
+    splitContainer.liveDragging = true;
 
     var leftTopComponent:UIComponent;
     var rightBottomComponent:UIComponent;
@@ -2016,7 +2077,7 @@ public class DefaultFlexViewFactory {
           } else {
             bottomHeight = rightBottom.measuredHeight;
           }
-          if ((topHeight + bottomHeight) > 0) {
+          if ((topHeight + bottomHeight) > splitContainer.height) {
             leftTop.percentHeight = (topHeight * 100.0) / (topHeight + bottomHeight);
             rightBottom.percentHeight = (bottomHeight * 100.0) / (topHeight + bottomHeight);
           }
@@ -2033,7 +2094,7 @@ public class DefaultFlexViewFactory {
           } else {
             rightWidth = rightBottom.measuredWidth;
           }
-          if ((leftWidth + rightWidth) > 0) {
+          if ((leftWidth + rightWidth) > splitContainer.width) {
             leftTop.percentWidth = (leftWidth * 100.0) / (leftWidth + rightWidth);
             rightBottom.percentWidth = (rightWidth * 100.0) / (leftWidth + rightWidth);
           }
@@ -2064,16 +2125,22 @@ public class DefaultFlexViewFactory {
       if (rTab.toolTip != null) {
         tabCanvas.toolTip = rTab.toolTip;
       }
-      var fixTabSize:Function = function (event:FlexEvent):void {
-        if (event.target is Canvas) {
-          var tabC:Canvas = event.target as Canvas;
-          tabC.measuredWidth = (tabC.getChildAt(0) as UIComponent).measuredWidth;
-          tabC.measuredHeight = (tabC.getChildAt(0) as UIComponent).measuredHeight;
-          //noinspection JSReferencingMutableVariableFromClosure
-          tabC.removeEventListener(FlexEvent.CREATION_COMPLETE, fixTabSize);
+      var fixTabSize:Function = function (event:Event):void {
+        var tabContent:UIComponent = event.target as UIComponent;
+        var tabCanvas:UIComponent = tabContent.parent as UIComponent;
+        if (tabContent is ViewStack && (tabContent as ViewStack).selectedChild) {
+          tabContent = (tabContent as ViewStack).selectedChild as UIComponent;
+        }
+        if (tabCanvas.measuredWidth < tabContent.measuredWidth) {
+          tabCanvas.measuredWidth = tabContent.measuredWidth;
+          tabContainer.invalidateSize();
+        }
+        if (tabCanvas.measuredHeight < tabContent.measuredHeight) {
+          tabCanvas.measuredHeight = tabContent.measuredHeight;
+          tabContainer.invalidateSize();
         }
       };
-      tabCanvas.addEventListener(FlexEvent.CREATION_COMPLETE, fixTabSize);
+      tabContent.addEventListener(ResizeEvent.RESIZE, fixTabSize);
       tabCanvas.addChild(tabContent);
     }
 
@@ -2106,6 +2173,7 @@ public class DefaultFlexViewFactory {
       command.leadingIndex = index;
       _commandHandler.registerCommand(command);
     }, tabContainer, "selectedIndex", true);
+    tabContainer.selectedIndex = remoteTabContainer.selectedIndex;
     return tabContainer;
   }
 
@@ -2230,6 +2298,7 @@ public class DefaultFlexViewFactory {
     remoteTimeField.state = remoteDateField.state;
     remoteTimeField.toolTip = remoteDateField.toolTip;
     remoteTimeField.secondsAware = remoteDateField.secondsAware;
+    remoteTimeField.millisecondsAware = remoteDateField.millisecondsAware;
     remoteTimeField.useDateDto(true);
 
     var timeField:TextInput = createComponent(remoteTimeField, false) as TextInput;
@@ -2245,8 +2314,10 @@ public class DefaultFlexViewFactory {
 
   protected function createTimeField(remoteTimeField:RTimeField):UIComponent {
     var timeField:TextInput = createTextInputComponent();
-    if (remoteTimeField.secondsAware) {
+    if (remoteTimeField.millisecondsAware) {
       sizeMaxComponentWidthFromText(timeField, remoteTimeField, LONG_TIME_TEMPLATE);
+    } else if (remoteTimeField.secondsAware) {
+      sizeMaxComponentWidthFromText(timeField, remoteTimeField, TIME_TEMPLATE);
     } else {
       sizeMaxComponentWidthFromText(timeField, remoteTimeField, SHORT_TIME_TEMPLATE);
     }
@@ -2665,9 +2736,11 @@ public class DefaultFlexViewFactory {
       table.addEventListener(IndexChangedEvent.HEADER_SHIFT, notifyTableChanged);
     }
     // This is to deal with NPE occurring in horizontal split panes with 2 tables.
-    table.width = width + 20;
     table.minWidth = 0;
+    table.width = width + 20;
     table.minHeight = table.headerHeight * 2;
+    // This is to deal with NPE occurring in vertical split panes with 2 tables.
+    table.height = table.minHeight * 8;
     return table;
   }
 
@@ -2695,17 +2768,16 @@ public class DefaultFlexViewFactory {
           }
           column.sortDescending = !column.sortDescending;
           table.displaySort(event.columnIndex, column.sortDescending);
-          if (state.children.length > 1) {
-            var orderingProperties:Object = {};
-            orderingProperties[property] = column.sortDescending ? "DESCENDING" : "ASCENDING";
-            var sortCommand:RemoteSortCommand = new RemoteSortCommand();
-            sortCommand.orderingProperties = orderingProperties;
-            sortCommand.viewStateGuid = remoteTable.state.guid;
-            sortCommand.viewStatePermId = remoteTable.state.permId;
-            sortCommand.targetPeerGuid = remoteTable.sortingAction.guid;
-            sortCommand.permId = remoteTable.sortingAction.permId;
-            _commandHandler.registerCommand(sortCommand);
-          }
+
+          var orderingProperties:Object = {};
+          orderingProperties[property] = column.sortDescending ? "DESCENDING" : "ASCENDING";
+          var sortCommand:RemoteSortCommand = new RemoteSortCommand();
+          sortCommand.orderingProperties = orderingProperties;
+          sortCommand.viewStateGuid = remoteTable.state.guid;
+          sortCommand.viewStatePermId = remoteTable.state.permId;
+          sortCommand.targetPeerGuid = remoteTable.sortingAction.guid;
+          sortCommand.permId = remoteTable.sortingAction.permId;
+          _commandHandler.registerCommand(sortCommand);
         });
       } else {
         table.addEventListener(DataGridEvent.HEADER_RELEASE, function (event:DataGridEvent):void {
@@ -2771,7 +2843,6 @@ public class DefaultFlexViewFactory {
 
     table.addEventListener(DataGridEvent.ITEM_EDIT_END, function (event:DataGridEvent):void {
       var table:DataGrid = event.currentTarget as DataGrid;
-      _actionHandler.setCurrentViewStateGuid(table, null, null);
       if (event.reason != DataGridEventReason.CANCELLED) {
         if (table.itemEditorInstance is RemoteValueDgItemEditor) {
           var currentEditor:RemoteValueDgItemEditor = table.itemEditorInstance as RemoteValueDgItemEditor;
@@ -2780,11 +2851,23 @@ public class DefaultFlexViewFactory {
               as RemoteCompositeValueState;
           var cell:RemoteValueState = row.children[currentEditor.index] as RemoteValueState;
 
-          table.callLater(function():void {
-            // Let the editor binding complete before setting the cell value.
+          if (event.reason == DataGridEventReason.OTHER) {
+            table.callLater(function ():void {
+              // Let the editor binding complete before setting the cell value.
+              cell.value = state.value;
+            });
+          } else {
             cell.value = state.value;
-          });
+          }
         }
+      }
+      if (event.reason == DataGridEventReason.OTHER) {
+        // Let all actions be triggered before resetting the current view state.
+        table.callLater(function ():void {
+          _actionHandler.setCurrentViewStateGuid(table, null, null);
+        });
+      } else {
+        _actionHandler.setCurrentViewStateGuid(table, null, null);
       }
     });
     table.addEventListener(DataGridEvent.ITEM_EDIT_BEGINNING, function (event:DataGridEvent):void {
@@ -3128,18 +3211,6 @@ public class DefaultFlexViewFactory {
     };
     BindingUtils.bindSetter(updateView, remoteState, "value", true);
 
-    var blockNewLine:Function = function (event:TextEvent):void {
-      var text:String = event.text;
-      if (isNewline(text)) {
-        event.preventDefault();
-      } else if(endsWithNewline(event.text)) {
-        if (textInput.text == StringUtil.trim(event.text)) {
-          event.preventDefault();
-        }
-      }
-    };
-    textInput.addEventListener(TextEvent.TEXT_INPUT, blockNewLine);
-
     var trimLastLine:Function = function (evt:Event):void {
       while (textInput.text && endsWithNewline(textInput.text)) {
         textInput.text = StringUtil.trim(textInput.text);
@@ -3168,6 +3239,11 @@ public class DefaultFlexViewFactory {
     textInput.addEventListener(FocusEvent.MOUSE_FOCUS_CHANGE, updateModel);
     textInput.addEventListener(FocusEvent.KEY_FOCUS_CHANGE, updateModel);
     textInput.addEventListener(FocusEvent.FOCUS_OUT, updateModel);
+    textInput.addEventListener(KeyboardEvent.KEY_DOWN, function (event:KeyboardEvent):void {
+      if (event.keyCode == Keyboard.ESCAPE) {
+        updateView(remoteState.value);
+      }
+    });
   }
 
   protected function isNewline(text:String):Boolean {
@@ -3223,7 +3299,9 @@ public class DefaultFlexViewFactory {
         customTimeFormatter.formatString = (remoteComponent as RTimeField).formatPattern;
         return customTimeFormatter;
       } else {
-        if ((remoteComponent as RTimeField).secondsAware) {
+        if ((remoteComponent as RTimeField).millisecondsAware) {
+          return _longTimeFormatter;
+        } else if ((remoteComponent as RTimeField).secondsAware) {
           return _timeFormatter;
         } else {
           return _shortTimeFormatter;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -20,21 +20,22 @@ package org.jspresso.framework.gui.remote;
 
 /**
  * A remote date field component.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public class RTimeField extends RComponent {
 
   private static final long serialVersionUID = 2384664561321144507L;
 
-  private boolean           secondsAware;
-  private String            formatPattern;
+  private boolean secondsAware;
+  private boolean millisecondsAware;
+  private String  formatPattern;
 
   /**
    * Constructs a new {@code RDateField} instance.
    *
    * @param guid
-   *          the guid.
+   *     the guid.
    */
   public RTimeField(String guid) {
     super(guid);
@@ -50,7 +51,7 @@ public class RTimeField extends RComponent {
 
   /**
    * Gets the secondsAware.
-   * 
+   *
    * @return the secondsAware.
    */
   public boolean isSecondsAware() {
@@ -59,12 +60,31 @@ public class RTimeField extends RComponent {
 
   /**
    * Sets the secondsAware.
-   * 
+   *
    * @param secondsAware
-   *          the secondsAware to set.
+   *     the secondsAware to set.
    */
   public void setSecondsAware(boolean secondsAware) {
     this.secondsAware = secondsAware;
+  }
+
+  /**
+   * Is milliseconds aware boolean.
+   *
+   * @return the boolean
+   */
+  public boolean isMillisecondsAware() {
+    return millisecondsAware;
+  }
+
+  /**
+   * Sets milliseconds aware.
+   *
+   * @param millisecondsAware
+   *     the milliseconds aware
+   */
+  public void setMillisecondsAware(boolean millisecondsAware) {
+    this.millisecondsAware = millisecondsAware;
   }
 
   /**
@@ -79,7 +99,8 @@ public class RTimeField extends RComponent {
   /**
    * Sets format pattern.
    *
-   * @param formatPattern the format pattern
+   * @param formatPattern
+   *     the format pattern
    */
   public void setFormatPattern(String formatPattern) {
     this.formatPattern = formatPattern;

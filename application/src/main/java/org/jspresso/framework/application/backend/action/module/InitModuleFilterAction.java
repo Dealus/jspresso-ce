@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -91,6 +91,10 @@ public class InitModuleFilterAction extends BackendAction {
     }
     if (queryComponentRefiner != null) {
       queryComponentRefiner.refineQueryComponent(queryComponent, context);
+    }
+    IQueryComponent previousFilter = filterableBeanCollectionModule.getFilter();
+    if (previousFilter != null) {
+      queryComponent.setOrderingProperties(previousFilter.getOrderingProperties());
     }
     filterableBeanCollectionModule.setFilter(queryComponent);
     filterableBeanCollectionModule.setModuleObjects(null);

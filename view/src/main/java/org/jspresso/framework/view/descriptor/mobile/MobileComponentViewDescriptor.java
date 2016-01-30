@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2014 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -247,5 +247,15 @@ public class MobileComponentViewDescriptor extends AbstractComponentViewDescript
    */
   public void setExcludedWritingProperties(List<String> excludedWritingProperties) {
     this.excludedWritingProperties = excludedWritingProperties;
+  }
+
+  /**
+   * Always true.
+   *
+   * @return the boolean
+   */
+  @Override
+  public boolean isWidthResizeable() {
+    return true;
   }
 }

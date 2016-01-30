@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -23,7 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 
-import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.jspresso.framework.action.ActionContextConstants;
 import org.jspresso.framework.application.action.AbstractAction;
 import org.jspresso.framework.application.frontend.IFrontendController;
@@ -104,10 +104,7 @@ public class FrontendAction<E, F, G> extends AbstractAction implements
     if (getName() == null) {
       return false;
     }
-    if (!getName().equals(other.getName())) {
-      return false;
-    }
-    return true;
+    return getName().equals(other.getName());
   }
 
   /**

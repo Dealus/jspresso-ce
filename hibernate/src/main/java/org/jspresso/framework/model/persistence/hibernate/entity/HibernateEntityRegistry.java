@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -18,13 +18,16 @@
  */
 package org.jspresso.framework.model.persistence.hibernate.entity;
 
+import java.io.Serializable;
+import java.util.Map;
+
 import org.jspresso.framework.application.backend.persistence.hibernate.HibernateHelper;
 import org.jspresso.framework.model.entity.IEntity;
 import org.jspresso.framework.model.entity.basic.BasicEntityRegistry;
 
 /**
  * An entity registry that knows how to deal with Hibernate proxies.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public class HibernateEntityRegistry extends BasicEntityRegistry {
@@ -33,10 +36,21 @@ public class HibernateEntityRegistry extends BasicEntityRegistry {
    * Constructs a new {@code HibernateEntityRegistry} instance.
    *
    * @param name
-   *          the name of the registry.
+   *     the name of the registry.
    */
   public HibernateEntityRegistry(String name) {
     super(name);
+  }
+
+  /**
+   * Instantiates a new Hibernate entity registry.
+   *
+   * @param name the name
+   * @param backingStore the backing store
+   */
+  public HibernateEntityRegistry(String name,
+                                 Map<Class<? extends IEntity>, Map<Serializable, IEntity>> backingStore) {
+    super(name, backingStore);
   }
 
   /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -18,7 +18,10 @@
  */
 package org.jspresso.framework.application.backend.persistence.hibernate;
 
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -27,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.hibernate.collection.spi.PersistentCollection;
+import org.hibernate.internal.util.collections.LazyIterator;
 import org.hibernate.proxy.HibernateProxy;
 import org.hibernate.proxy.LazyInitializer;
 import org.hibernate.type.Type;
@@ -42,6 +46,8 @@ import org.jspresso.framework.model.persistence.hibernate.EntityProxyInterceptor
 import org.jspresso.framework.model.persistence.hibernate.entity.HibernateEntityRegistry;
 import org.jspresso.framework.security.UserPrincipal;
 import org.jspresso.framework.util.bean.PropertyHelper;
+import org.jspresso.framework.util.exception.NestedRuntimeException;
+import org.jspresso.framework.util.reflect.ReflectHelper;
 
 /**
  * Hibernate session interceptor aware of a backend controller to deal with
@@ -66,9 +72,7 @@ public class ControllerAwareEntityProxyInterceptor extends EntityProxyIntercepto
                          String[] propertyNames, Type[] types) {
     if (entity instanceof IEntity) {
       Map<String, Object> dirtyProperties = getBackendController().getDirtyProperties((IEntity) entity, false);
-      boolean hasJustBeenSaved = false;
       if (dirtyProperties != null) {
-        hasJustBeenSaved = dirtyProperties.containsKey(IEntity.VERSION) && dirtyProperties.get(IEntity.VERSION) == null;
         dirtyProperties.remove(IEntity.VERSION);
       }
       if (dirtyProperties == null) {
@@ -77,7 +81,7 @@ public class ControllerAwareEntityProxyInterceptor extends EntityProxyIntercepto
       if (dirtyProperties.isEmpty()) {
         return new int[0];
       }
-      if (hasJustBeenSaved) {
+      if (!((IEntity) entity).isPersistent()) {
         // whenever an entity has just been saved, its state is in the dirty
         // store. Hibernate might ask to check dirtiness especially for
         // collection members. Those just saved entities must not be considered
@@ -133,7 +137,7 @@ public class ControllerAwareEntityProxyInterceptor extends EntityProxyIntercepto
     }
     ((HibernateBackendController) getBackendController()).detachFromHibernateInDepth(registeredEntity,
         ((HibernateBackendController) getBackendController()).getHibernateSession(), new HibernateEntityRegistry(
-        "detachFromHibernateInDepth"));
+            "detachFromHibernateInDepth"));
     return registeredEntity;
   }
 
@@ -213,64 +217,86 @@ public class ControllerAwareEntityProxyInterceptor extends EntityProxyIntercepto
    */
   @Override
   public void preFlush(Iterator entities) {
-
-    if (!getBackendController().isUnitOfWorkActive() && entities.hasNext()) {
+    if (!entities.hasNext()) {
+      return;
+    }
+    //This is a hack to be informed of new additions to the flush during the flush
+    Map<?, ?> underlyingHibernateMap;
+    try {
+      underlyingHibernateMap = (Map<?, ?>) ReflectHelper.getPrivateFieldValue(LazyIterator.class, "map", entities);
+    } catch (IllegalAccessException | NoSuchFieldException e) {
+      throw new NestedRuntimeException("Could not extract the underlying Hibernate map.");
+    }
+    IBackendController backendController = getBackendController();
+    if (!backendController.isUnitOfWorkActive() && entities.hasNext()) {
       // throw new BackendException(
       // "A save has been attempted outside of any transactional context. Jspresso disallows this bad practice.");
       LOG.warn(
           "A flush has been attempted outside of any transactional context. Jspresso disallows this bad practice.");
     }
-
     // To avoid concurrent access modifications
-    Set<Object> preFlushedEntities = new LinkedHashSet<>();
-    while (entities.hasNext()) {
-      preFlushedEntities.add(entities.next());
-    }
-    Set<Object> onUpdatedEntities = new HashSet<>();
-    boolean onUpdateTriggered = triggerOnUpdate(preFlushedEntities, onUpdatedEntities);
-    while (onUpdateTriggered) {
-      // Until the state is stable.
-      onUpdateTriggered = triggerOnUpdate(preFlushedEntities, onUpdatedEntities);
+    Collection<Object> preFlushedEntities = new LinkedHashSet<>(underlyingHibernateMap.values());
+    final Set<Object> persistedEntities = new HashSet<>();
+    final Set<Object> lifecycledEntities = new HashSet<>();
+
+    PropertyChangeListener dirtInterceptor = new PropertyChangeListener() {
+      @Override
+      public void propertyChange(PropertyChangeEvent evt) {
+        Object source = evt.getSource();
+        if (source instanceof IEntity) {
+          lifecycledEntities.remove(source);
+        }
+      }
+    };
+    try {
+      backendController.addDirtInterceptor(dirtInterceptor);
+      boolean lifeCycleTriggered = triggerLifecycle(preFlushedEntities, persistedEntities, lifecycledEntities);
+      while (lifeCycleTriggered) {
+        // Because new entities might have been added to the underlying map of the original iterator.
+        preFlushedEntities = new LinkedHashSet<>(underlyingHibernateMap.values());
+        // Until the state is stable.
+        lifeCycleTriggered = triggerLifecycle(preFlushedEntities, persistedEntities, lifecycledEntities);
+      }
+    } finally {
+      backendController.removeDirtInterceptor(dirtInterceptor);
     }
   }
 
-  private boolean triggerOnUpdate(Set<Object> preFlushedEntities, Set<Object> onUpdatedEntities) {
-    boolean onUpdateTriggered = false;
+  private boolean triggerLifecycle(Collection<Object> preFlushedEntities, Set<Object> persistedEntities,
+                                   Set<Object> lifecycledEntities) {
+    boolean lifecycleTriggered = false;
     for (Object entity : preFlushedEntities) {
-      if (entity instanceof ILifecycleCapable && !onUpdatedEntities.contains(entity)) {
+      if (entity instanceof ILifecycleCapable && !lifecycledEntities.contains(entity)) {
         if (entity instanceof IEntity) {
-          if (((IEntity) entity).isPersistent()) {
+          if (((IEntity) entity).getVersion() != null) {
             boolean isClean = false;
             Map<String, Object> dirtyProperties = getBackendController().getDirtyProperties((IEntity) entity, false);
-            boolean hasJustBeenSaved = false;
-            if (dirtyProperties != null) {
-              hasJustBeenSaved = dirtyProperties.containsKey(IEntity.VERSION) && dirtyProperties.get(IEntity.VERSION)
-                  == null;
-              dirtyProperties.remove(IEntity.VERSION);
-            }
             if (dirtyProperties == null) {
               isClean = true;
             } else if (dirtyProperties.isEmpty()) {
               isClean = true;
-            } else if (hasJustBeenSaved) {
-              // whenever an entity has just been saved, its state is in the
-              // dirty store. Hibernate might ask to check dirtiness especially
-              // for collection members. Those just saved entities must not be
-              // considered dirty.
-              isClean = true;
             }
-            if (!onUpdatedEntities.contains(entity) && !isClean && !getBackendController()
-                .isEntityRegisteredForDeletion((IEntity) entity)) {
-              // the entity is dirty and is going to be flushed.
+            if (getBackendController().isEntityRegisteredForDeletion((IEntity) entity)) {
+              // already performed onDelete
+              //((ILifecycleCapable) entity).onDelete(getEntityFactory(), getPrincipal(), getEntityLifecycleHandler());
+              lifecycledEntities.add(entity);
+              lifecycleTriggered = true;
+            } else if (!((IEntity) entity).isPersistent() && !persistedEntities.contains(entity)) {
+              persistedEntities.add(entity);
+              // already performed onSave
+              //((ILifecycleCapable) entity).onPersist(getEntityFactory(), getPrincipal(), getEntityLifecycleHandler());
+              lifecycledEntities.add(entity);
+              lifecycleTriggered = true;
+            } else if (!isClean) {
               ((ILifecycleCapable) entity).onUpdate(getEntityFactory(), getPrincipal(), getEntityLifecycleHandler());
-              onUpdatedEntities.add(entity);
-              onUpdateTriggered = true;
+              lifecycledEntities.add(entity);
+              lifecycleTriggered = true;
             }
           }
         }
       }
     }
-    return onUpdateTriggered;
+    return lifecycleTriggered;
   }
 
   /**

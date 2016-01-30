@@ -1,15 +1,20 @@
-/**
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
- * <p>
- * This file is part of the Jspresso framework. Jspresso is free software: you
- * can redistribute it and/or modify it under the terms of the GNU Lesser
- * General Public License as published by the Free Software Foundation, either
- * version 3 of the License, or (at your option) any later version. Jspresso is
- * distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details. You should have received a copy of the GNU Lesser General Public
- * License along with Jspresso. If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
+ *
+ *  This file is part of the Jspresso framework.
+ *
+ *  Jspresso is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Jspresso is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package org.jspresso.framework.view.flex {
@@ -18,7 +23,9 @@ import flash.display.Sprite;
 import flash.events.Event;
 import flash.events.KeyboardEvent;
 import flash.events.MouseEvent;
+import flash.events.TimerEvent;
 import flash.ui.Keyboard;
+import flash.utils.Timer;
 
 import mx.controls.DataGrid;
 import mx.controls.listClasses.IDropInListItemRenderer;
@@ -42,6 +49,10 @@ public class EnhancedDataGrid extends DataGrid {
   private var _customSort:Boolean;
   private var _cbMultiSelection:Boolean;
 
+  private static var H_SCROLL_DELAY_MAX_VISIBLE_CELLS:int = 500;
+  private var _targetHScrollPosition:Number;
+  private var _hScrollTimer:Timer;
+
   public function EnhancedDataGrid() {
     super();
     doubleClickEnabled = true;
@@ -52,6 +63,8 @@ public class EnhancedDataGrid extends DataGrid {
     _customSort = false;
     _cbMultiSelection = false;
     addEventListener(DataGridEvent.ITEM_EDIT_BEGINNING, itemEditBeginning);
+    _hScrollTimer = new Timer(200, 1);
+    _hScrollTimer.addEventListener(TimerEvent.TIMER_COMPLETE, applyTargetHScroll);
   }
 
   override protected function mouseDoubleClickHandler(event:MouseEvent):void {
@@ -202,6 +215,21 @@ public class EnhancedDataGrid extends DataGrid {
       return 0;
     }
     return uw;
+  }
+
+  override public function set horizontalScrollPosition(value:Number):void {
+    if ((rowCount * columnCount) > H_SCROLL_DELAY_MAX_VISIBLE_CELLS) {
+      _targetHScrollPosition = value;
+      _hScrollTimer.reset();
+      _hScrollTimer.start();
+    } else {
+      super.horizontalScrollPosition = value;
+    }
+  }
+
+  private function applyTargetHScroll(event:TimerEvent):void {
+    super.horizontalScrollPosition = NaN;
+    super.horizontalScrollPosition = _targetHScrollPosition;
   }
 }
 }

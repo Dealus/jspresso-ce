@@ -1,10 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
+  ~
+  ~  This file is part of the Jspresso framework.
+  ~
+  ~  Jspresso is free software: you can redistribute it and/or modify
+  ~  it under the terms of the GNU Lesser General Public License as published by
+  ~  the Free Software Foundation, either version 3 of the License, or
+  ~  (at your option) any later version.
+  ~
+  ~  Jspresso is distributed in the hope that it will be useful,
+  ~  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~  GNU Lesser General Public License for more details.
+  ~
+  ~  You should have received a copy of the GNU Lesser General Public License
+  ~  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
+  -->
 <beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd"
   default-lazy-init="true">
 
   <!-- Root application context for the Jspresso framework. -->
-  
+
   <bean id="null" class="org.jspresso.framework.util.spring.NullFactoryBean"/>
 
   <bean id="mockMessageSource" class="org.jspresso.framework.util.i18n.mock.MockMessageSource" />
@@ -71,9 +89,15 @@
   <!-- The implementation used as ComponentDescriptorRegistry. -->
   <bean id="componentDescriptorRegistry" class="org.jspresso.framework.model.descriptor.basic.BasicComponentDescriptorRegistry" />
 
+  <bean id="defaultIconDimension" class="org.jspresso.framework.util.gui.Dimension">
+    <property name="width" value="16"/>
+    <property name="height" value="16"/>
+  </bean>
+
   <!-- The implementation used as ComponentIconProvider. -->
   <bean id="defaultDomainIconProvider" class="org.jspresso.framework.model.descriptor.ComponentIconProvider">
     <property name="componentDescriptorRegistry" ref="componentDescriptorRegistry" />
+    <property name="defaultDimension" ref="defaultIconDimension"/>
   </bean>
 
   <!-- The implementation used as ComponentFactory. -->
@@ -89,14 +113,14 @@
     <property name="queryComponentDescriptorFactory" ref="queryComponentDescriptorFactory" />
     <property name="entityGUIDGenerator" ref="entityGUIDGenerator" />
   </bean>
-  
+
   <alias name="basicEntityFactory" alias="basicComponentFactory"/>
 
   <bean id="controllerAwareEntityFactory" parent="basicEntityFactory"
     class="org.jspresso.framework.application.backend.entity.ControllerAwareProxyEntityFactory"/>
-  
+
   <alias name="controllerAwareEntityFactory" alias="controllerAwareComponentFactory"/>
-  
+
   <!-- Root action beans. -->
 
   <bean id="applicationQueryComponentRefiner" class="org.jspresso.framework.application.backend.action.MockQueryComponentRefiner" />
@@ -114,7 +138,7 @@
 
   <bean id="initModuleFilterAction" parent="initModuleFilterActionBase" />
 
-  <!-- The implementation used as view factory. View factory is not defined as singleton since it can implement some cache 
+  <!-- The implementation used as view factory. View factory is not defined as singleton since it can implement some cache
     a the session level. -->
   <bean id="abstractViewFactory" class="org.jspresso.framework.view.AbstractViewFactory" abstract="true">
     <property name="connectorFactory" ref="connectorFactory" />
@@ -144,7 +168,7 @@
 
   <!-- The scriptHandler. -->
   <bean id="scriptHandler" class="org.jspresso.framework.util.scripting.DefaultScriptHandler" />
- 
+
   <!-- Custom exception handler -->
   <bean id="customExceptionHandler" class="org.jspresso.framework.util.exception.MockExceptionHandler" />
 
@@ -287,7 +311,7 @@
   </bean>
 
   <bean abstract="true" id="abstractBackController" parent="abstractBackControllerBase" />
-  
+
   <!-- Utility beans for model. -->
   <bean id="basicReportDescriptor_INSTANCE" class="org.springframework.beans.factory.config.FieldRetrievingFactoryBean">
     <property name="staticField"
@@ -384,7 +408,7 @@
   <bean id="rootEntityVersion" class="org.jspresso.framework.model.descriptor.basic.BasicIntegerPropertyDescriptor">
     <property name="name" value="version" />
   </bean>
-  
+
   <bean id="rootEntityDescriptor" class="org.jspresso.framework.model.descriptor.basic.BasicInterfaceDescriptor">
     <constructor-arg value="org.jspresso.framework.model.entity.IEntity" />
     <property name="propertyDescriptors">
@@ -409,7 +433,7 @@
       <list />
     </property>
   </bean>
-  
+
   <alias name="rootEntityDescriptor" alias="IEntity"/>
 
   <bean id="entityDescriptorInit" class="org.springframework.beans.factory.config.MethodInvokingFactoryBean" lazy-init="false">
@@ -420,6 +444,23 @@
         <ref bean="rootEntityDescriptor" />
       </list>
     </property>
+  </bean>
+
+  <bean abstract="true" id="commonTranslationProcessor"
+        class="org.jspresso.framework.model.component.IPropertyTranslation$CommonProcessor">
+    <property name="accessorFactory" ref="accessorFactory" />
+    <property name="componentFactory" ref="controllerAwareEntityFactory" />
+    <property name="translationsPropertyName" value="propertyTranslations" />
+  </bean>
+
+  <bean id="propertyNameTranslationProcessor" parent="commonTranslationProcessor">
+    <property name="processedPropertyName" value="propertyName"/>
+  </bean>
+  <bean id="languageTranslationProcessor" parent="commonTranslationProcessor">
+    <property name="processedPropertyName" value="language"/>
+  </bean>
+  <bean id="translatedValueTranslationProcessor" parent="commonTranslationProcessor">
+    <property name="processedPropertyName" value="translatedValue"/>
   </bean>
 
   <bean id="componentTranslationsDescriptor"
@@ -441,15 +482,35 @@
                   <property name="name" value="propertyName" />
                   <property name="maxLength" value="64" />
                   <property name="mandatory" value="true" />
+                  <property name="integrityProcessorBeanNames">
+                    <list>
+                      <value>propertyNameTranslationProcessor</value>
+                    </list>
+                  </property>
                 </bean>
                 <bean parent="languagePropertyDescriptor">
                   <property name="mandatory" value="true"/>
+                  <property name="integrityProcessorBeanNames">
+                    <list>
+                      <value>languageTranslationProcessor</value>
+                    </list>
+                  </property>
                 </bean>
                 <bean class="org.jspresso.framework.model.descriptor.basic.BasicStringPropertyDescriptor">
                   <property name="name" value="translatedValue" />
                   <property name="maxLength" value="512" />
+                  <property name="integrityProcessorBeanNames">
+                    <list>
+                      <value>translatedValueTranslationProcessor</value>
+                    </list>
+                  </property>
                 </bean>
               </list>
+            </property>
+            <property name="iconImageURL">
+              <bean parent="abstractFwIconImageURL">
+                <constructor-arg index="0" value="flags"/>
+              </bean>
             </property>
             <property name="serviceDelegateClassNames">
               <map>
@@ -493,6 +554,7 @@
         <entry key="tr" value="classpath:org/jspresso/framework/application/images/i18n/tr.png"/>
         <entry key="bg" value="classpath:org/jspresso/framework/application/images/i18n/bg.png"/>
         <entry key="ru" value="classpath:org/jspresso/framework/application/images/i18n/ru.png"/>
+        <entry key="ro" value="classpath:org/jspresso/framework/application/images/i18n/ro.png"/>
         <entry key="cs" value="classpath:org/jspresso/framework/application/images/i18n/cs.png"/>
         <entry key="sk" value="classpath:org/jspresso/framework/application/images/i18n/sk.png"/>
       </map>

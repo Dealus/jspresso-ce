@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -38,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.jspresso.framework.application.action.AbstractActionContextAware;
+import org.jspresso.framework.application.backend.persistence.hibernate.HibernateHelper;
 import org.jspresso.framework.model.component.IPropertyTranslation;
 import org.jspresso.framework.model.component.IQueryComponent;
 import org.jspresso.framework.model.component.query.ComparableQueryStructure;
@@ -67,12 +68,14 @@ public class DefaultCriteriaFactory extends AbstractActionContextAware implement
   private static final Logger LOG = LoggerFactory.getLogger(DefaultCriteriaFactory.class);
 
   private boolean triStateBooleanSupported;
+  private boolean useAliasesForJoins;
 
   /**
    * Constructs a new {@code DefaultCriteriaFactory} instance.
    */
   public DefaultCriteriaFactory() {
     triStateBooleanSupported = false;
+    useAliasesForJoins = false;
   }
 
   /**
@@ -126,7 +129,12 @@ public class DefaultCriteriaFactory extends AbstractActionContextAware implement
             }
             if (sortable) {
               for (String pathElt : path) {
-                orderingCriteria = criteria.getSubCriteriaFor(orderingCriteria, pathElt, JoinType.LEFT_OUTER_JOIN);
+                if (isUseAliasesForJoins()) {
+                  orderingCriteria = criteria.getSubCriteriaFor(orderingCriteria, pathElt, pathElt,
+                      JoinType.LEFT_OUTER_JOIN);
+                } else {
+                  orderingCriteria = criteria.getSubCriteriaFor(orderingCriteria, pathElt, JoinType.LEFT_OUTER_JOIN);
+                }
               }
               propertyName = name.toString();
             }
@@ -204,11 +212,9 @@ public class DefaultCriteriaFactory extends AbstractActionContextAware implement
               propertyDescriptor instanceof IStringPropertyDescriptor
                   && ((IStringPropertyDescriptor) propertyDescriptor).isTranslatable())) && (!isEntityRef || IEntity.ID
               .equals(property.getKey()))) {
-            String prefixedProperty;
+            String prefixedProperty = PropertyHelper.toJavaBeanPropertyName(property.getKey());
             if (path != null) {
-              prefixedProperty = path + "." + property.getKey();
-            } else {
-              prefixedProperty = property.getKey();
+              prefixedProperty = path + "." + prefixedProperty;
             }
             if (property.getValue() instanceof IEntity) {
               if (!((IEntity) property.getValue()).isPersistent()) {
@@ -267,8 +273,14 @@ public class DefaultCriteriaFactory extends AbstractActionContextAware implement
                     }
                   }
                   if (digDeeper) {
-                    DetachedCriteria joinCriteria = rootCriteria.getSubCriteriaFor(currentCriteria, prefixedProperty,
-                        JoinType.INNER_JOIN);
+                    DetachedCriteria joinCriteria;
+                    if (isUseAliasesForJoins()) {
+                      joinCriteria = rootCriteria.getSubCriteriaFor(currentCriteria, prefixedProperty, prefixedProperty,
+                          JoinType.INNER_JOIN);
+                    } else {
+                      joinCriteria = rootCriteria.getSubCriteriaFor(currentCriteria, prefixedProperty,
+                          JoinType.INNER_JOIN);
+                    }
                     abort = abort || completeCriteria(rootCriteria, joinCriteria, null, joinedComponent, context);
                   }
                 }
@@ -519,11 +531,16 @@ public class DefaultCriteriaFactory extends AbstractActionContextAware implement
   /**
    * Creates a criterion by processing a comparable query structure.
    *
-   * @param path      the path to the comparable property.
-   * @param queryStructure      the comparable query structure.
-   * @param componentDescriptor the component descriptor
-   * @param queryComponent the query component
-   * @param context the context
+   * @param path
+   *     the path to the comparable property.
+   * @param queryStructure
+   *     the comparable query structure.
+   * @param componentDescriptor
+   *     the component descriptor
+   * @param queryComponent
+   *     the query component
+   * @param context
+   *     the context
    * @return the created criterion or null if no criterion necessary.
    */
   protected Criterion createComparableQueryStructureRestriction(String path, ComparableQueryStructure queryStructure,
@@ -599,12 +616,14 @@ public class DefaultCriteriaFactory extends AbstractActionContextAware implement
    *
    * @return the triStateBooleanSupported.
    */
-  public boolean isTriStateBooleanSupported() {
+  protected boolean isTriStateBooleanSupported() {
     return triStateBooleanSupported;
   }
 
   /**
-   * Sets the triStateBooleanSupported.
+   * Configures the criteria factory whether to consider use 3-states booleans, i.e. true, false or undefined. If
+   * <strong>triStateBooleanSupported</strong> is set to false, then a {@code false} boolean value will simply be
+   * ignored in the generated criteria.
    *
    * @param triStateBooleanSupported
    *     the triStateBooleanSupported to set.
@@ -613,4 +632,22 @@ public class DefaultCriteriaFactory extends AbstractActionContextAware implement
     this.triStateBooleanSupported = triStateBooleanSupported;
   }
 
+  /**
+   * Is use aliases for joins.
+   *
+   * @return the boolean
+   */
+  protected boolean isUseAliasesForJoins() {
+    return useAliasesForJoins;
+  }
+
+  /**
+   * Sets use aliases for joins.
+   *
+   * @param useAliasesForJoins
+   *     the use aliases for joins
+   */
+  public void setUseAliasesForJoins(boolean useAliasesForJoins) {
+    this.useAliasesForJoins = useAliasesForJoins;
+  }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -20,27 +20,42 @@ package org.jspresso.framework.application.model;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.jspresso.framework.application.backend.action.BackendAction;
 import org.jspresso.framework.application.model.descriptor.BeanCollectionModuleDescriptor;
 import org.jspresso.framework.application.model.descriptor.FilterableBeanCollectionModuleDescriptor;
 import org.jspresso.framework.model.component.IComponent;
 import org.jspresso.framework.model.component.IQueryComponent;
+import org.jspresso.framework.model.component.query.EnumQueryStructure;
+import org.jspresso.framework.model.component.query.EnumValueQueryStructure;
+import org.jspresso.framework.model.component.query.QueryComponent;
+import org.jspresso.framework.model.component.query.QueryComponentSerializationUtil;
 import org.jspresso.framework.model.descriptor.IComponentDescriptor;
 import org.jspresso.framework.model.descriptor.IComponentDescriptorProvider;
 import org.jspresso.framework.model.descriptor.IQueryComponentDescriptorFactory;
 import org.jspresso.framework.util.collection.ESort;
 import org.jspresso.framework.util.collection.IPageable;
+import org.jspresso.framework.util.gui.ERenderingOptions;
 import org.jspresso.framework.util.lang.ObjectUtils;
 import org.jspresso.framework.view.descriptor.EBorderType;
 import org.jspresso.framework.view.descriptor.ICompositeViewDescriptor;
+import org.jspresso.framework.view.descriptor.IQueryExtraViewDescriptorFactory;
 import org.jspresso.framework.view.descriptor.IQueryViewDescriptorFactory;
+import org.jspresso.framework.view.descriptor.ITabViewDescriptor;
 import org.jspresso.framework.view.descriptor.IViewDescriptor;
 import org.jspresso.framework.view.descriptor.basic.BasicBorderViewDescriptor;
 import org.jspresso.framework.view.descriptor.basic.BasicCollectionViewDescriptor;
+import org.jspresso.framework.view.descriptor.basic.BasicTabViewDescriptor;
 import org.jspresso.framework.view.descriptor.basic.BasicViewDescriptor;
 
 /**
@@ -58,14 +73,16 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
   private IComponentDescriptor<IComponent> filterComponentDescriptor;
   private PropertyChangeListener           filterComponentTracker;
   private IViewDescriptor                  filterViewDescriptor;
+  private BasicTabViewDescriptor           filterExtraViewDescriptor;
 
   private Map<String, ESort>               orderingProperties;
   private Integer                          pageSize;
   private IQueryComponentDescriptorFactory queryComponentDescriptorFactory;
   private IQueryViewDescriptorFactory      queryViewDescriptorFactory;
+  private IQueryExtraViewDescriptorFactory queryExtraViewDescriptorFactory;
 
-  private IViewDescriptor paginationViewDescriptor;
-  private BackendAction   pagingAction;
+  private IViewDescriptor                  paginationViewDescriptor;
+  private BackendAction                    pagingAction;
 
   /**
    * Gets the queryViewDescriptorFactory.
@@ -81,6 +98,15 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
    */
   public FilterableBeanCollectionModule() {
     filterComponentTracker = new FilterComponentTracker(this);
+  }
+
+  /**
+   * Gest the queryExtraViewDescriptorFactory.
+   *
+   * @return the queryExtraViewDescriptorFactory.
+   */
+  public IQueryExtraViewDescriptorFactory getQueryExtraViewDescriptorFactory() {
+    return queryExtraViewDescriptorFactory;
   }
 
   /**
@@ -115,6 +141,15 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
   }
 
   /**
+   * Gets the filterExtraViewDescriptor.
+   *
+   * @return the filterExtraViewDescriptor.
+   */
+  protected BasicTabViewDescriptor getFilterExtraViewDescriptor() {
+    return filterExtraViewDescriptor;
+  }
+
+  /**
    * Gets the orderingProperties.
    *
    * @return the orderingProperties.
@@ -142,18 +177,42 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
   /**
    * {@inheritDoc}
    */
-  @SuppressWarnings("unchecked")
   @Override
   public IViewDescriptor getViewDescriptor() {
     IViewDescriptor superViewDescriptor = super.getViewDescriptor();
-
     IComponentDescriptor<?> moduleDescriptor = (IComponentDescriptor<?>) superViewDescriptor.getModelDescriptor();
+    IViewDescriptor filterViewDesc = buildFilterViewDescriptor(moduleDescriptor);
+
+    BasicBorderViewDescriptor decorator = new BasicBorderViewDescriptor();
+    decorator.setNorthViewDescriptor(filterViewDesc);
+    decorator.setCenterViewDescriptor(superViewDescriptor);
+
+    BasicCollectionViewDescriptor moduleObjectsView = (BasicCollectionViewDescriptor) BasicCollectionViewDescriptor
+        .extractMainCollectionView(getProjectedViewDescriptor());
+    if (getPageSize() != null && getPageSize() > 0) {
+      if (moduleObjectsView != null
+          && moduleObjectsView.getPaginationViewDescriptor() == null) {
+        moduleObjectsView.setPaginationViewDescriptor(getPaginationViewDescriptor());
+      }
+    }
+    decorator.setModelDescriptor(superViewDescriptor.getModelDescriptor());
+    return decorator;
+  }
+
+  /**
+   * Build the filter view descriptor.
+   * @param moduleDescriptor
+   *     The module descriptor
+   *
+   * @return the filter view descriptor
+   */
+  @SuppressWarnings("unchecked")
+  protected IViewDescriptor buildFilterViewDescriptor(IComponentDescriptor<?> moduleDescriptor) {
 
     IComponentDescriptor<IComponent> realComponentDesc = getFilterComponentDescriptor();
     IViewDescriptor filterViewDesc = getFilterViewDescriptor();
     IComponentDescriptorProvider<IQueryComponent> filterModelDescriptorProvider =
-        (IComponentDescriptorProvider<IQueryComponent>) moduleDescriptor
-        .getPropertyDescriptor(FilterableBeanCollectionModuleDescriptor.FILTER);
+        (IComponentDescriptorProvider<IQueryComponent>) moduleDescriptor.getPropertyDescriptor(FilterableBeanCollectionModuleDescriptor.FILTER);
     boolean customFilterView = false;
     if (filterViewDesc == null) {
       filterViewDesc = getQueryViewDescriptorFactory().createQueryViewDescriptor(realComponentDesc,
@@ -170,20 +229,45 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
     if (customFilterView) {
       getQueryViewDescriptorFactory().adaptExistingViewDescriptor(filterViewDesc);
     }
-    BasicBorderViewDescriptor decorator = new BasicBorderViewDescriptor();
-    decorator.setNorthViewDescriptor(filterViewDesc);
-    decorator.setCenterViewDescriptor(superViewDescriptor);
 
-    BasicCollectionViewDescriptor moduleObjectsView = (BasicCollectionViewDescriptor) BasicCollectionViewDescriptor
-        .extractMainCollectionView(getProjectedViewDescriptor());
-    if (getPageSize() != null && getPageSize() > 0) {
-      if (moduleObjectsView != null
-          && moduleObjectsView.getPaginationViewDescriptor() == null) {
-        moduleObjectsView.setPaginationViewDescriptor(getPaginationViewDescriptor());
+    BasicTabViewDescriptor tabFilterView = getFilterExtraViewDescriptor();
+    if (tabFilterView == null) {
+      IQueryExtraViewDescriptorFactory extraViewFactory = getQueryExtraViewDescriptorFactory();
+      if (extraViewFactory != null) {
+        tabFilterView = extraViewFactory.createQueryExtraViewDescriptor(
+            getProjectedViewDescriptor(),
+            realComponentDesc,
+            filterModelDescriptorProvider.getComponentDescriptor());
       }
     }
-    decorator.setModelDescriptor(superViewDescriptor.getModelDescriptor());
-    return decorator;
+    if (tabFilterView!=null) {
+      List<IViewDescriptor> tabs = new ArrayList<>();
+      for (IViewDescriptor view : tabFilterView.getChildViewDescriptors()) {
+        BasicViewDescriptor v = ((BasicViewDescriptor) view).clone();
+        v.setModelDescriptor(filterModelDescriptorProvider);
+        tabs.add(v);
+      }
+
+      if (filterViewDesc instanceof ITabViewDescriptor) {
+        for (IViewDescriptor view : ((ICompositeViewDescriptor) filterViewDesc).getChildViewDescriptors()) {
+          BasicViewDescriptor v = ((BasicViewDescriptor) view).clone();
+          v.setModelDescriptor(filterModelDescriptorProvider);
+          tabs.add(v);
+        }
+      }
+      else if (filterViewDesc instanceof BasicViewDescriptor) {
+        ((BasicViewDescriptor) filterViewDesc).setBorderType(EBorderType.NONE);
+        tabs.add(filterViewDesc);
+      }
+
+      BasicTabViewDescriptor tabView = new BasicTabViewDescriptor();
+      tabView.setPermId(getPermId() + ".filter");
+      tabView.setRenderingOptions(ERenderingOptions.LABEL);
+      tabView.setTabs(tabs);
+
+      filterViewDesc = tabView;
+    }
+    return filterViewDesc;
   }
 
   /**
@@ -239,7 +323,7 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
    * This property allows to configure a custom filter model descriptor. If not
    * set, which is the default value, the filter model is built out of the
    * element component descriptor (QBE filter model).
-   * 
+   *
    * @param filterComponentDescriptor
    *          the filterComponentDescriptor to set.
    */
@@ -249,17 +333,32 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
   }
 
   /**
-   * This property allows to refine the default filer view to re-arrange the
+   * This property allows to refine the default filter view to re-arrange the
    * filter fields. Custom filter view descriptors assigned here must not be
    * assigned a model descriptor since they will be at runtime. This is because
    * the filter component descriptor must be reworked - to adapt comparable
    * field structures for instance.
-   * 
+   *
    * @param filterViewDescriptor
    *          the filterViewDescriptor to set.
    */
   public void setFilterViewDescriptor(IViewDescriptor filterViewDescriptor) {
     this.filterViewDescriptor = filterViewDescriptor;
+  }
+
+  /**
+   * This property allow to refine the filter view. If this field is not empty
+   * the filter view will be replaced by a tab view containing this view and the
+   * view defined bu the {@link #setFilterViewDescriptor(IViewDescriptor)} method.
+   *
+   * If the extra filter view or the filter view is already a tab view, then tab
+   * views will be merged to a single tab view.
+   *
+   * @param filterExtraViewDescriptor
+   *          the filterExtraViewDescriptor to set.
+   */
+  public void setFilterExtraViewDescriptor(BasicTabViewDescriptor filterExtraViewDescriptor) {
+    this.filterExtraViewDescriptor = filterExtraViewDescriptor;
   }
 
   /**
@@ -287,7 +386,7 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
   /**
    * Configures a custom page size for the result set. If not set, which is the
    * default, the elements default page size is used.
-   * 
+   *
    * @param pageSize
    *          the pageSize to set.
    */
@@ -298,7 +397,7 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
 
   /**
    * Sets the queryViewDescriptorFactory.
-   * 
+   *
    * @param queryViewDescriptorFactory
    *          the queryViewDescriptorFactory to set.
    */
@@ -308,8 +407,18 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
   }
 
   /**
+   * Sets the queryExtraViewDescriptorFactory.
+   *
+   * @param queryExtraViewDescriptorFactory
+   *          the queryExtraViewDescriptorFactory to set.
+   */
+  public void setQueryExtraViewDescriptorFactory(IQueryExtraViewDescriptorFactory queryExtraViewDescriptorFactory) {
+    this.queryExtraViewDescriptorFactory = queryExtraViewDescriptorFactory;
+  }
+
+  /**
    * Gets the module descriptor.
-   * 
+   *
    * @return the module descriptor.
    */
   @Override
@@ -322,7 +431,7 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
   /**
    * Gets the query component descriptor factory used to create the filter model
    * descriptor.
-   * 
+   *
    * @return the query component descriptor factory used to create the filter
    *         model descriptor.
    */
@@ -372,7 +481,7 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
 
   /**
    * Configures the sub view used to navigate between the pages.
-   * 
+   *
    * @param paginationViewDescriptor
    *          the paginationViewDescriptor to set.
    */
@@ -584,7 +693,7 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
 
   /**
    * Gets the pagingAction.
-   * 
+   *
    * @return the pagingAction.
    */
   public BackendAction getPagingAction() {
@@ -593,7 +702,7 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
 
   /**
    * Sets the pagingAction.
-   * 
+   *
    * @param pagingAction
    *          the pagingAction to set.
    */
@@ -626,7 +735,7 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
 
   /**
    * Sets the queryComponentDescriptorFactory.
-   * 
+   *
    * @param queryComponentDescriptorFactory
    *          the queryComponentDescriptorFactory to set.
    */
@@ -643,5 +752,69 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
   @Override
   public List<?> getResults() {
     return getModuleObjects();
+  }
+
+  /**
+   * Serialize filter criteria.
+   *
+   * @return the serialized form of the filter criteria component
+   * @throws IOException the iO exception
+   */
+  public String serializeCriteria() throws IOException {
+    return QueryComponentSerializationUtil.serializeFilter(getFilter(), new LinkedHashMap<String, Serializable>());
+  }
+
+
+  /**
+   * Deserialize filter criteria from base 64 from
+   * and hydrate que query component.
+   *
+   * @param filterAsBase64 the serialized form of the filter criteria
+   * @throws ClassNotFoundException the class not found exception
+   * @throws IOException the iO exception
+   */
+  public void deserializeCriteria(String filterAsBase64) throws ClassNotFoundException, IOException {
+    Serializable[] criteria = QueryComponentSerializationUtil.deserializeFilter(filterAsBase64);
+    hydrateCriteria(getFilter(), criteria);
+  }
+
+  /**
+   * Hydrate filter criteria.
+   *
+   * @param query the query
+   * @param filters as table of
+   *        - Odd indexes : parameter key
+   *        - Even indexes : parameter value
+   * @throws IOException the iO exception
+   * @throws ClassNotFoundException the class not found exception
+   */
+  protected void hydrateCriteria(IQueryComponent query, Serializable... filters) throws IOException, ClassNotFoundException {
+
+    for (int i = 0; i < filters.length; i += 2) {
+      String key = (String) filters[i];
+      Serializable value = filters[i + 1];
+
+      if (value instanceof Serializable[]) {
+        Serializable[] delegate = (Serializable[]) value;
+        QueryComponent qc = (QueryComponent) query.get(key);
+
+        // recurse
+        if (qc!=null)
+          hydrateCriteria(qc, delegate);
+      }
+      else if (value instanceof String && ((String) value).startsWith("[[")) {
+        // This is an EnumQueryStructure serialized value
+        Set<String> enumValues = new HashSet<>(Arrays.asList(((String) value).substring(2,
+            ((String) value).length() - 2).split("§")));
+        EnumQueryStructure eqs = (EnumQueryStructure) query.get(key);
+        for (EnumValueQueryStructure evqs : eqs.getEnumerationValues()) {
+          evqs.setSelected(enumValues.contains(evqs.getValue()));
+        }
+      }
+      else {
+        query.put(key, value);
+      }
+    }
+
   }
 }

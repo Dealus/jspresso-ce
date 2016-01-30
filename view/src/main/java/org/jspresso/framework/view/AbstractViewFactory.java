@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -27,7 +27,6 @@ import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -722,6 +721,29 @@ public abstract class AbstractViewFactory<E, F, G> implements
       final ITabViewDescriptor descriptor) {
     BasicIndexedView<E> indexedView = new BasicIndexedView<E>(viewComponent) {
 
+      @Override
+      public void setConnector(IValueConnector connector) {
+        super.setConnector(connector);
+        if (descriptor.isLazy() && connector != null) {
+          // Only keep the selected tab connector bound
+          connector.addValueChangeListener(new IValueChangeListener() {
+            @Override
+            public void valueChange(ValueChangeEvent evt) {
+              ICompositeValueConnector parentConnector = (AbstractCompositeValueConnector) getConnector();
+              for (IView<E> tabView : getChildren()) {
+                IValueConnector tabViewConnector = tabView.getConnector();
+                if (tabViewConnector.getParentConnector() != null) {
+                  getMvcBinder().bind(tabViewConnector, null);
+                  parentConnector.removeChildConnector(tabViewConnector.getId());
+                  tabViewConnector.setParentConnector(null);
+                }
+              }
+              rebindTabViewIfNecessary(getChildView(getCurrentViewIndex()));
+            }
+          });
+        }
+      }
+
       /**
        * {@inheritDoc}
        */
@@ -738,42 +760,27 @@ public abstract class AbstractViewFactory<E, F, G> implements
           IView<E> newSelectedView = getChildView(index);
 
           if (newSelectedView != null && oldSelectedView != null) {
-            IValueConnector oldChildConnector = oldSelectedView.getConnector();
-            IValueConnector childConnector = newSelectedView.getConnector();
-            ICompositeValueConnector parentConnector = (AbstractCompositeValueConnector) getConnector();
-            if (parentConnector != null && oldChildConnector != null) {
-              getMvcBinder().bind(oldChildConnector, null);
-              parentConnector.removeChildConnector(oldChildConnector.getId());
-              oldChildConnector.setParentConnector(null);
-            }
-            if (parentConnector != null && childConnector != null) {
-              parentConnector.addChildConnector(childConnector.getId(),
-                  childConnector);
-              if (parentConnector.getModelConnector() != null) {
-                getMvcBinder().bind(
-                    childConnector,
-                    ((ICompositeValueConnector) parentConnector
-                        .getModelConnector()).getChildConnector(childConnector
-                        .getId()));
-              } else {
-                getMvcBinder().bind(childConnector, null);
-              }
-            }
+            rebindTabViewIfNecessary(newSelectedView);
           }
         }
       }
 
-      /**
-       * {@inheritDoc}
-       */
-      @Override
-      public List<IView<E>> getChildren() {
-        List<IView<E>> superChildren = super.getChildren();
-        if (superChildren != null && !superChildren.isEmpty()
-            && descriptor.isLazy()) {
-          return Collections.singletonList(getChildView(getCurrentViewIndex()));
+      private void rebindTabViewIfNecessary(IView<E> tabView) {
+        IValueConnector childConnector = tabView.getConnector();
+        ICompositeValueConnector parentConnector = (AbstractCompositeValueConnector) getConnector();
+        if (parentConnector != null && childConnector != null && childConnector.getParentConnector() == null) {
+          parentConnector.addChildConnector(childConnector.getId(),
+              childConnector);
+          if (parentConnector.getModelConnector() != null) {
+            getMvcBinder().bind(
+                childConnector,
+                ((ICompositeValueConnector) parentConnector
+                    .getModelConnector()).getChildConnector(childConnector
+                    .getId()));
+          } else {
+            getMvcBinder().bind(childConnector, null);
+          }
         }
-        return superChildren;
       }
     };
     indexedView.setDescriptor(descriptor);
@@ -1622,7 +1629,10 @@ public abstract class AbstractViewFactory<E, F, G> implements
   protected String getTimePattern(
       ITimeAwarePropertyDescriptor propertyDescriptor,
       ITranslationProvider translationProvider, Locale locale) {
-    if (propertyDescriptor.isSecondsAware()) {
+
+    if(propertyDescriptor.isMillisecondsAware()) {
+      return translationProvider.getLongTimePattern(locale);
+    } else if (propertyDescriptor.isSecondsAware()) {
       return translationProvider.getTimePattern(locale);
     }
     return translationProvider.getShortTimePattern(locale);
@@ -1774,7 +1784,8 @@ public abstract class AbstractViewFactory<E, F, G> implements
   protected IFormatter<Number, String> createDurationFormatter(
       IDurationPropertyDescriptor propertyDescriptor,
       ITranslationProvider translationProvider, Locale locale) {
-    return new DurationFormatter(translationProvider, locale);
+    return new DurationFormatter(translationProvider, locale, propertyDescriptor.isSecondsAware(),
+        propertyDescriptor.isMillisecondsAware());
   }
 
   /**
@@ -3586,6 +3597,41 @@ public abstract class AbstractViewFactory<E, F, G> implements
   }
 
   /**
+   * Store tab selection preference.
+   *
+   * @param tabViewDescriptor
+   *     the tab view descriptor
+   * @param selectedTabIndex
+   *     the selected tab index
+   * @param actionHandler
+   *     the action handler
+   */
+  protected void storeTabSelectionPreference(ITabViewDescriptor tabViewDescriptor, int selectedTabIndex, IActionHandler actionHandler) {
+    if (tabViewDescriptor.getPermId() != null) {
+      actionHandler.putUserPreference(tabViewDescriptor.getPermId(), Integer.toString(selectedTabIndex));
+    }
+  }
+
+  /**
+   * Gets tab selection preference.
+   *
+   * @param tabViewDescriptor
+   *     the tab view descriptor
+   * @param actionHandler
+   *     the action handler
+   * @return the tab selection preference
+   */
+  protected int getTabSelectionPreference(ITabViewDescriptor tabViewDescriptor, IActionHandler actionHandler) {
+    if (tabViewDescriptor.getPermId() != null) {
+      String tabSelectionPreference = actionHandler.getUserPreference(tabViewDescriptor.getPermId());
+      if (tabSelectionPreference != null) {
+        return Integer.parseInt(tabSelectionPreference);
+      }
+    }
+    return 0;
+  }
+
+  /**
    * Filters enumeration values if refined.
    *
    * @param enumerationValues
@@ -3718,4 +3764,31 @@ public abstract class AbstractViewFactory<E, F, G> implements
     }
     return false;
   }
+
+  /**
+   * Trigger tab selection action.
+   *
+   * @param selectedIndex
+   *     the selected index
+   * @param tabComponent
+   *     the tab component
+   * @param tabViewDescriptor
+   *     the tab view descriptor
+   * @param tabView
+   *     the tab view
+   * @param actionHandler
+   *     the action handler
+   */
+  protected void triggerTabSelectionAction(int selectedIndex, E tabComponent,
+                                           ITabViewDescriptor tabViewDescriptor, BasicIndexedView<E> tabView,
+                                           IActionHandler actionHandler) {
+    IAction tabSelectionAction = tabViewDescriptor.getTabSelectionAction();
+    if (tabSelectionAction != null) {
+      Map<String, Object> actionContext = getActionFactory().createActionContext(actionHandler, tabView,
+          tabView.getConnector(), Integer.toString(selectedIndex), tabComponent);
+      actionContext.put(ActionContextConstants.ACTION_PARAM, selectedIndex);
+      actionHandler.execute(tabSelectionAction, actionContext);
+    }
+  }
+
 }

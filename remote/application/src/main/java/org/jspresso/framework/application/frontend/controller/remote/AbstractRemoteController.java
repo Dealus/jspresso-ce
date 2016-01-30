@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2014 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -41,6 +41,8 @@ import org.jspresso.framework.application.frontend.action.FrontendAction;
 import org.jspresso.framework.application.frontend.command.remote.CommandException;
 import org.jspresso.framework.application.frontend.command.remote.IRemoteCommandHandler;
 import org.jspresso.framework.application.frontend.command.remote.RemoteActionCommand;
+import org.jspresso.framework.application.frontend.command.remote.RemoteAddCardCommand;
+import org.jspresso.framework.application.frontend.command.remote.RemoteApplicationDescriptionCommand;
 import org.jspresso.framework.application.frontend.command.remote.RemoteChildrenCommand;
 import org.jspresso.framework.application.frontend.command.remote.RemoteCleanupCommand;
 import org.jspresso.framework.application.frontend.command.remote.RemoteCloseDialogCommand;
@@ -118,7 +120,9 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
 
   private static final Logger LOG = LoggerFactory.getLogger(AbstractRemoteController.class);
 
-  private List<RemoteCommand>    commandQueue;
+  private List<RemoteCommand>                                       commandQueue;
+  private Map<Class<? extends RemoteCommand>, Map<String, Integer>> commandIndices;
+
   private IGUIDGenerator<String> guidGenerator;
   private int                    commandLowPriorityOffset;
   private List<String>           removedPeersGuids;
@@ -222,6 +226,7 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
   private List<RemoteCommand> resetCommandQueue() {
     List<RemoteCommand> copy = commandQueue;
     commandQueue = new ArrayList<>();
+    commandIndices = new HashMap<>();
     commandLowPriorityOffset = 0;
     return copy;
   }
@@ -271,8 +276,8 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
     initCommand.setSecondaryActions(createRActionLists(getSecondaryActionMap(), null));
     initCommand.setHelpActions(createRActionLists(getHelpActions(), null));
     initCommand.setNavigationActions(createRActionLists(getNavigationActions(), null));
-    initCommand.setExitAction(getViewFactory().getActionFactory().createAction(getExitAction(), this, null,
-        getLocale()));
+    initCommand.setExitAction(
+        getViewFactory().getActionFactory().createAction(getExitAction(), this, null, getLocale()));
     int w = 0;
     if (getFrameWidth() != null) {
       w = getFrameWidth();
@@ -331,8 +336,8 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
         initLoginCommand.setLoginView(loginView.getPeer());
         IViewDescriptor loginViewDescriptor = getLoginViewDescriptor();
         initLoginCommand.setLoginActionLists(createRActionLists(loginViewDescriptor.getActionMap(), loginView));
-        initLoginCommand.setSecondaryLoginActionLists(createRActionLists(loginViewDescriptor.getSecondaryActionMap(),
-            loginView));
+        initLoginCommand.setSecondaryLoginActionLists(
+            createRActionLists(loginViewDescriptor.getSecondaryActionMap(), loginView));
         registerCommand(initLoginCommand);
       } else {
         login();
@@ -342,6 +347,8 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
     } else if (command instanceof RemoteRefreshCommand) {
       // do nothing. Previously buffered commands will simply be sent to the client.
     } else if (command instanceof RemoteHistoryDisplayCommand) {
+      displayPinnedModule(((RemoteHistoryDisplayCommand) command).getSnapshotId());
+      /*
       ModuleHistoryEntry historyEntry = displayPinnedModule(((RemoteHistoryDisplayCommand) command).getSnapshotId());
       if (historyEntry != null) {
         // Update the name on client side.
@@ -349,6 +356,7 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
         reply.setName(historyEntry.getName());
         registerCommand(reply);
       }
+      */
     } else if (command instanceof RemoteTableChangedCommand) {
       Object[][] columnPrefs = new Object[((RemoteTableChangedCommand) command).getColumnIds().length][2];
       for (int i = 0; i < ((RemoteTableChangedCommand) command).getColumnIds().length; i++) {
@@ -365,8 +373,8 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
         targetPeer = getRegistered(command.getTargetPeerGuid());
       }
       if (targetPeer == null) {
-        LOG.warn("No target peer registered for GUID {} in session {}",
-            command.getTargetPeerGuid(), getApplicationSession().getId());
+        LOG.warn("No target peer registered for GUID {} in session {}", command.getTargetPeerGuid(),
+            getApplicationSession().getId());
         throw new CommandException(getTranslation("session.unsynced", getApplicationSession().getLocale()));
       }
       if (command instanceof RemoteValueCommand) {
@@ -374,9 +382,25 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
           if (targetPeer instanceof IFormattedValueConnector) {
             ((IFormattedValueConnector) targetPeer).setFormattedValue(((RemoteValueCommand) command).getValue());
           } else if (targetPeer instanceof IRemoteStateOwner) {
-            ((IRemoteStateOwner) targetPeer).setValueFromState(((RemoteValueCommand) command).getValue());
+            IRemoteStateOwner remoteStateOwner = (IRemoteStateOwner) targetPeer;
+            RemoteValueCommand valueCommand = (RemoteValueCommand) command;
+            remoteStateOwner.setValueFromState(valueCommand.getValue());
+            if (!ObjectUtils.equals(remoteStateOwner.getState().getValue(), valueCommand.getValue())) {
+              // There are rare cases (e.g. due to interceptSetter that resets the command value to the connector
+              // actual state), when the connector and the state are not synced.
+              valueCommand.setValue(remoteStateOwner.getState().getValue());
+              registerCommand(valueCommand);
+            }
           } else if (targetPeer instanceof IValueConnector) {
-            ((IValueConnector) targetPeer).setConnectorValue(((RemoteValueCommand) command).getValue());
+            IValueConnector connector = (IValueConnector) targetPeer;
+            RemoteValueCommand valueCommand = (RemoteValueCommand) command;
+            connector.setConnectorValue(valueCommand.getValue());
+            if (!ObjectUtils.equals(connector.getConnectorValue(), valueCommand.getValue())) {
+              // There are rare cases (e.g. due to interceptSetter that resets the command value to the connector
+              // actual state), when the connector and the state are not synced.
+              valueCommand.setValue(connector.getConnectorValue());
+              registerCommand(valueCommand);
+            }
           } else {
             throw new CommandException("Target peer type cannot be handled : " + targetPeer.getClass().getName());
           }
@@ -426,15 +450,20 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
         }
       } else if (command instanceof RemoteActionCommand) {
         RAction action = (RAction) targetPeer;
-        RActionEvent actionEvent = ((RemoteActionCommand) command).getActionEvent();
-        String viewStatePermId = actionEvent.getViewStatePermId();
-        if (viewStatePermId != null) {
-          IRemotePeer viewPeer = getRegisteredForPermId(viewStatePermId);
-          if (viewPeer != null) {
-            actionEvent.setViewStateGuid(viewPeer.getGuid());
+        // action state might have been changed by previous command. We must re-check it before executing since the
+        // client is not aware of it yet.
+        // See bug #52
+        if (action.isEnabled()) {
+          RActionEvent actionEvent = ((RemoteActionCommand) command).getActionEvent();
+          String viewStatePermId = actionEvent.getViewStatePermId();
+          if (viewStatePermId != null) {
+            IRemotePeer viewPeer = getRegisteredForPermId(viewStatePermId);
+            if (viewPeer != null) {
+              actionEvent.setViewStateGuid(viewPeer.getGuid());
+            }
           }
+          action.actionPerformed(actionEvent, null);
         }
-        action.actionPerformed(actionEvent, null);
       } else if (command instanceof RemoteSortCommand) {
         RAction sortAction = (RAction) targetPeer;
         Map<String, String> orderingProperties = ((RemoteSortCommand) command).getOrderingProperties();
@@ -632,8 +661,39 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
       commandQueue.add(commandLowPriorityOffset, command);
       commandLowPriorityOffset++;
     } else {
-      commandQueue.add(command);
+      if (isIdempotent(command)) {
+        Class<? extends RemoteCommand> commandClass = command.getClass();
+        Map<String, Integer> guidToIndex = commandIndices.get(commandClass);
+        if (guidToIndex == null) {
+          guidToIndex = new HashMap<>();
+          commandIndices.put(commandClass, guidToIndex);
+        }
+        String guid = command.getTargetPeerGuid();
+        Integer oldIndex = guidToIndex.get(guid);
+        if (oldIndex != null) {
+          RemoteCommand oldCommand = commandQueue.set(oldIndex + commandLowPriorityOffset, command);
+          assert ObjectUtils.equals(oldCommand.getClass(), command.getClass()) : "Different command types";
+          assert ObjectUtils.equals(oldCommand.getTargetPeerGuid(), command.getTargetPeerGuid()) :
+              "Different command targets";
+        } else {
+          guidToIndex.put(guid, commandQueue.size() - commandLowPriorityOffset);
+          commandQueue.add(command);
+        }
+      } else {
+        commandQueue.add(command);
+      }
     }
+  }
+
+  /**
+   * Is idempotent boolean.
+   *
+   * @param command
+   *     the command
+   * @return the boolean
+   */
+  public boolean isIdempotent(RemoteCommand command) {
+    return getRegistered(command.getTargetPeerGuid()) != null;
   }
 
   /**
@@ -897,6 +957,7 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
   public boolean disposeModalDialog(RComponent sourceWidget, Map<String, Object> context) {
     if (super.disposeModalDialog(sourceWidget, context)) {
       registerCommand(new RemoteCloseDialogCommand());
+      transferFocus(context);
       return true;
     }
     return false;
@@ -978,10 +1039,12 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
    * {@inheritDoc}
    */
   @Override
-  protected void modulePinned(ModuleHistoryEntry historyEntry) {
-    super.modulePinned(historyEntry);
+  protected void pinnedModuleDisplayed(ModuleHistoryEntry historyEntry, boolean addToHistory) {
+    super.pinnedModuleDisplayed(historyEntry, addToHistory);
     RemoteHistoryDisplayCommand historyCommand = new RemoteHistoryDisplayCommand();
-    historyCommand.setSnapshotId(historyEntry.getId());
+    if (addToHistory) {
+      historyCommand.setSnapshotId(historyEntry.getId());
+    }
     historyCommand.setName(historyEntry.getName());
     registerCommand(historyCommand);
   }
@@ -1031,7 +1094,8 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
   /**
    * Create workspace view.
    *
-   * @param workspaceName the workspace name
+   * @param workspaceName
+   *     the workspace name
    * @return the r component
    */
   protected abstract RComponent createWorkspaceView(String workspaceName);
@@ -1043,5 +1107,15 @@ public abstract class AbstractRemoteController extends AbstractFrontendControlle
    */
   protected IGUIDGenerator<String> getGuidGenerator() {
     return guidGenerator;
+  }
+
+  @Override
+  public void setName(String name) {
+    super.setName(name);
+    if (isStarted()) {
+      RemoteApplicationDescriptionCommand radCommand = new RemoteApplicationDescriptionCommand();
+      radCommand.setApplicationName(getI18nName(this, getLocale()));
+      registerCommand(radCommand);
+    }
   }
 }

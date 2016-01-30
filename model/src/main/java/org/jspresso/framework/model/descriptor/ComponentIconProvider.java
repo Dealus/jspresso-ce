@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -22,6 +22,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.jspresso.framework.model.component.IComponent;
+import org.jspresso.framework.util.gui.Dimension;
 import org.jspresso.framework.util.gui.Icon;
 import org.jspresso.framework.util.gui.IconProvider;
 
@@ -30,14 +32,15 @@ import org.jspresso.framework.util.gui.IconProvider;
  * the rendering image of a component based on its contract. It basically
  * iterates over the descriptor collection and returns the image url of the
  * first compatible descriptor.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public class ComponentIconProvider implements IconProvider {
 
-  private final Map<Class<?>, Icon>                 cache;
+  private final Map<Class<?>, Icon>           cache;
   private IComponentDescriptorRegistry        componentDescriptorRegistry;
   private Collection<IComponentDescriptor<?>> componentDescriptors;
+  private Dimension                           defaultDimension;
 
   /**
    * Constructs a new {@code ComponentIconImageURLProvider} instance.
@@ -54,7 +57,12 @@ public class ComponentIconProvider implements IconProvider {
     if (userObject == null) {
       return null;
     }
-    Class<?> modelClass = userObject.getClass();
+    Class<?> modelClass;
+    if (userObject instanceof IComponent) {
+      modelClass = ((IComponent) userObject).getComponentContract();
+    } else {
+      modelClass = userObject.getClass();
+    }
     if (cache.containsKey(modelClass)) {
       return cache.get(modelClass);
     }
@@ -69,7 +77,7 @@ public class ComponentIconProvider implements IconProvider {
 
   /**
    * Sets the componentDescriptorRegistry.
-   * 
+   *
    * @param componentDescriptorRegistry
    *          the componentDescriptorRegistry to set.
    */
@@ -80,13 +88,22 @@ public class ComponentIconProvider implements IconProvider {
 
   /**
    * Sets the componentDescriptors.
-   * 
+   *
    * @param componentDescriptors
    *          the componentDescriptors to set.
    */
   public void setComponentDescriptors(
       Collection<IComponentDescriptor<?>> componentDescriptors) {
     this.componentDescriptors = componentDescriptors;
+  }
+
+  /**
+   * Sets default dimension.
+   *
+   * @param defaultDimension the default dimension
+   */
+  public void setDefaultDimension(Dimension defaultDimension) {
+    this.defaultDimension = defaultDimension;
   }
 
   private Icon computeIcon(Class<?> modelClass) {
@@ -105,6 +122,9 @@ public class ComponentIconProvider implements IconProvider {
       if (icon == null && modelClass.getSuperclass() != null) {
         icon = computeIcon(modelClass.getSuperclass());
       }
+    }
+    if (icon != null && icon.getDimension() == null) {
+      icon.setDimension(defaultDimension);
     }
     return icon;
   }

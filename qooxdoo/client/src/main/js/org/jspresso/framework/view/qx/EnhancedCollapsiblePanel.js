@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2014 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -44,7 +44,10 @@ qx.Class.define("org.jspresso.framework.view.qx.EnhancedCollapsiblePanel", {
         control.removeListener("click", this.toggleValue, this);
         control.addListener("click", function (e) {
           if (this.getCollapsible()) {
-            this.toggleValue();
+            // do not close an open panel that belongs to an accordion.
+            if (!this.getGroup() || !this.getValue()) {
+              this.toggleValue();
+            }
           }
         }, this);
       }

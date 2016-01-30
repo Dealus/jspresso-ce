@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2014 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -82,6 +82,14 @@ public class ProxyAuthenticatorInit {
     return ((HttpURLConnection) connection).getResponseCode();
   }
 
+  /**
+   * The entry point of application.
+   *
+   * @param args
+   *     the input arguments
+   * @throws IOException
+   *     the io exception
+   */
   public static void main(String... args) throws IOException {
     if (args.length == 0) {
       System.out.println("Usage : java -Dhttp.proxyHost=proxy.example.com" +

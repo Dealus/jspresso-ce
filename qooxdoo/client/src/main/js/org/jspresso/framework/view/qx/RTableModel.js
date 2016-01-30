@@ -1,3 +1,22 @@
+/*
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
+ *
+ *  This file is part of the Jspresso framework.
+ *
+ *  Jspresso is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Jspresso is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 //noinspection FunctionWithInconsistentReturnsJS
 /**
  * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
@@ -93,6 +112,9 @@ qx.Class.define("org.jspresso.framework.view.qx.RTableModel", {
     __editable: true,
     /** @type {Array} */
     __dynamicToolTipIndices: null,
+    /** @type {Object} */
+    __dynamicStylesIndices: null,
+
 
     // overridden
     getRowCount: function () {
@@ -101,20 +123,28 @@ qx.Class.define("org.jspresso.framework.view.qx.RTableModel", {
 
     // overridden
     getValue: function (columnIndex, rowIndex) {
-      var cellState = this.getRowData(rowIndex).getChildren().getItem(columnIndex + 1);
-      this.__setupCellListeners(columnIndex, rowIndex, cellState);
-      return cellState.getValue();
+      if (this.getRowData(rowIndex)) {
+        var cellState = this.getRowData(rowIndex).getChildren().getItem(columnIndex + 1);
+        this.__setupCellListeners(columnIndex, rowIndex, cellState);
+        return cellState.getValue();
+      }
     },
 
     // overridden
     setValue: function (columnIndex, rowIndex, value) {
-      var cellState = this.getRowData(rowIndex).getChildren().getItem(columnIndex + 1);
-      cellState.setValue(value);
+      if (this.getRowData(rowIndex)) {
+        var cellState = this.getRowData(rowIndex).getChildren().getItem(columnIndex + 1);
+        cellState.setValue(value);
+      }
     },
 
     // overridden
     setDynamicToolTipIndices: function (value) {
       this.__dynamicToolTipIndices = value;
+    },
+
+    setDynamicStylesIndices: function (value) {
+      this.__dynamicStylesIndices = value;
     },
 
     // overridden
@@ -150,17 +180,15 @@ qx.Class.define("org.jspresso.framework.view.qx.RTableModel", {
       this.__sortColumnIndex = columnIndex;
       this.__sortAscending = ascending;
       if (this.__sortingAction) {
-        if (this.getRowCount() > 1) {
-          var orderingProperties = {};
-          orderingProperties[property] = ascending ? "ASCENDING" : "DESCENDING";
-          var sortCommand = new org.jspresso.framework.application.frontend.command.remote.RemoteSortCommand();
-          sortCommand.setOrderingProperties(orderingProperties);
-          sortCommand.setViewStateGuid(this.__state.getGuid());
-          sortCommand.setViewStatePermId(this.__state.getPermId());
-          sortCommand.setTargetPeerGuid(this.__sortingAction.getGuid());
-          sortCommand.setPermId(this.__sortingAction.getPermId());
-          this.__commandHandler.registerCommand(sortCommand);
-        }
+        var orderingProperties = {};
+        orderingProperties[property] = ascending ? "ASCENDING" : "DESCENDING";
+        var sortCommand = new org.jspresso.framework.application.frontend.command.remote.RemoteSortCommand();
+        sortCommand.setOrderingProperties(orderingProperties);
+        sortCommand.setViewStateGuid(this.__state.getGuid());
+        sortCommand.setViewStatePermId(this.__state.getPermId());
+        sortCommand.setTargetPeerGuid(this.__sortingAction.getGuid());
+        sortCommand.setPermId(this.__sortingAction.getPermId());
+        this.__commandHandler.registerCommand(sortCommand);
       } else {
         if (this.__state.getChildren()) {
           var comparator = (ascending ? org.jspresso.framework.view.qx.RTableModel._defaultSortComparatorAscending :
@@ -229,7 +257,7 @@ qx.Class.define("org.jspresso.framework.view.qx.RTableModel", {
      */
     __setupCellListeners: function (columnIndex, rowIndex, cellState) {
       if (!cellState.getUserData(this.toHashCode())) {
-        cellState.addListener("changeValue", function (e) {
+        var refreshCell = function (e) {
           var data = {
             firstRow: rowIndex,
             lastRow: rowIndex,
@@ -237,7 +265,12 @@ qx.Class.define("org.jspresso.framework.view.qx.RTableModel", {
             lastColumn: columnIndex
           };
           this.fireDataEvent("dataChanged", data);
-        }, this);
+        };
+        cellState.addListener("changeValue", refreshCell, this);
+        for (var i = 0; i < this.__dynamicStylesIndices[columnIndex].length; i++) {
+          cellState.getParent().getChildren().getItem(
+              this.__dynamicStylesIndices[columnIndex][i]).addListener("changeValue", refreshCell, this);
+        }
         cellState.setUserData(this.toHashCode(), true)
       }
     },

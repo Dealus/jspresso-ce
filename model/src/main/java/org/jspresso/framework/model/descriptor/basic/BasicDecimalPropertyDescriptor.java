@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -137,7 +137,7 @@ public class BasicDecimalPropertyDescriptor extends
       return boundValue.doubleValue() == Double.MAX_VALUE
           || boundValue.doubleValue() == -Double.MAX_VALUE;
     }
-    return super.isDefault(boundValue);
+    return super.isDefault(null);
   }
 
   /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -31,7 +31,7 @@ import org.jspresso.framework.application.model.Module;
 /**
  * This action is used to restart a module. It cleans its children and executes
  * its startup action.
- * 
+ *
  * @author Vincent Vandenschrick
  * @param <E>
  *          the actual gui component type used.
@@ -49,21 +49,39 @@ public class ModuleRestartAction<E, F, G> extends FrontendAction<E, F, G> {
   public boolean execute(IActionHandler actionHandler,
       Map<String, Object> context) {
     Module module = getModule(context);
-    if (module instanceof BeanCollectionModule
-        && module.getSubModules() != null) {
-      List<Module> beanModulesToRemove = new ArrayList<>();
-      for (Module beanModule : module.getSubModules()) {
-        if (beanModule instanceof BeanModule) {
-          ((BeanModule) beanModule).setModuleObject(null);
-          beanModulesToRemove.add(beanModule);
+    boolean startupResult = restartModule(module, actionHandler, context);
+    return startupResult && super.execute(actionHandler, context);
+  }
+
+  /**
+   * Restart a given module and its sticky children.
+   *
+   * @param module the module
+   * @param actionHandler the action handler
+   * @param context the context
+   * @return the boolean
+   */
+  protected boolean restartModule(Module module, IActionHandler actionHandler, Map<String, Object> context) {
+    if (module.getSubModules() != null) {
+      List<Module> subModulesToRemove = new ArrayList<>();
+      for (Module subModule : module.getSubModules()) {
+        if (module.isSubModuleSticky(subModule)) {
+          restartModule(subModule, actionHandler, context);
+        } else {
+          if (subModule instanceof BeanModule) {
+            ((BeanModule) subModule).setModuleObject(null);
+          } else if (subModule instanceof BeanCollectionModule) {
+            ((BeanCollectionModule) subModule).setModuleObjects(null);
+          }
+          subModulesToRemove.add(subModule);
         }
       }
-      module.removeSubModules(beanModulesToRemove);
+      module.removeSubModules(subModulesToRemove);
     }
     boolean startupResult = true;
     if (module.getStartupAction() != null) {
       startupResult = actionHandler.execute(module.getStartupAction(), context);
     }
-    return startupResult && super.execute(actionHandler, context);
+    return startupResult;
   }
 }

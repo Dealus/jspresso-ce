@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -20,11 +20,11 @@ package org.jspresso.framework.util.html;
 
 import java.io.StringWriter;
 
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.lang3.StringEscapeUtils;
 
 /**
  * This is a simple helper class to be able to cope with html.
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public final class HtmlHelper {
@@ -45,7 +45,7 @@ public final class HtmlHelper {
 
   /**
    * Transforms a string to html and emphasis.
-   * 
+   *
    * @param message
    *          the message to transform.
    * @return the html emphasised string.
@@ -54,7 +54,7 @@ public final class HtmlHelper {
     if (message != null) {
       return "<b>" + message + "</b>";
     }
-    return message;
+    return null;
   }
 
   /**
@@ -72,7 +72,7 @@ public final class HtmlHelper {
 
   /**
    * Escapes special characters for HTML.
-   * 
+   *
    * @param text
    *          the text to escape.
    * @param escapeSpaces
@@ -85,7 +85,7 @@ public final class HtmlHelper {
     }
     // use apache lib to escape...
     // this library doesn't escape spaces (see workaround bellow)
-    String str = StringEscapeUtils.escapeHtml(text);
+    String str = StringEscapeUtils.escapeHtml4(text);
 
     if (escapeSpaces) {
       // Workaround : we have also to escape spaces...
@@ -125,7 +125,7 @@ public final class HtmlHelper {
 
   /**
    * Is this message HTML code.
-   * 
+   *
    * @param msg
    *          the message to test.
    * @return true if it contains &lt;HTML&gt;
@@ -139,7 +139,7 @@ public final class HtmlHelper {
 
   /**
    * Keeps the text pre-formatted.
-   * 
+   *
    * @param message
    *          the message to transform.
    * @return the html pre-formatted text.
@@ -148,12 +148,12 @@ public final class HtmlHelper {
     if (message != null) {
       return "<pre>" + message + "</pre>";
     }
-    return message;
+    return null;
   }
 
   /**
    * Surrounds with html tags.
-   * 
+   *
    * @param message
    *          the message to transform.
    * @return the html pre-formatted text.
@@ -162,6 +162,6 @@ public final class HtmlHelper {
     if (message != null) {
       return HTML_START + message + HTML_END;
     }
-    return message;
+    return null;
   }
 }

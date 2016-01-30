@@ -1,15 +1,20 @@
-/**
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
- * <p>
- * This file is part of the Jspresso framework. Jspresso is free software: you
- * can redistribute it and/or modify it under the terms of the GNU Lesser
- * General Public License as published by the Free Software Foundation, either
- * version 3 of the License, or (at your option) any later version. Jspresso is
- * distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details. You should have received a copy of the GNU Lesser General Public
- * License along with Jspresso. If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
+ *
+ *  This file is part of the Jspresso framework.
+ *
+ *  Jspresso is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Jspresso is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package org.jspresso.framework.application.frontend.controller.flex {
@@ -81,6 +86,7 @@ import org.jspresso.framework.application.frontend.command.remote.IRemoteCommand
 import org.jspresso.framework.application.frontend.command.remote.RemoteAbstractDialogCommand;
 import org.jspresso.framework.application.frontend.command.remote.RemoteActionCommand;
 import org.jspresso.framework.application.frontend.command.remote.RemoteAddCardCommand;
+import org.jspresso.framework.application.frontend.command.remote.RemoteApplicationDescriptionCommand;
 import org.jspresso.framework.application.frontend.command.remote.RemoteChildrenCommand;
 import org.jspresso.framework.application.frontend.command.remote.RemoteCleanupCommand;
 import org.jspresso.framework.application.frontend.command.remote.RemoteClipboardCommand;
@@ -355,6 +361,8 @@ public class DefaultFlexController implements IRemotePeerRegistry, IActionHandle
           unregister(removedPeer);
         }
       }
+    } else if (command is RemoteApplicationDescriptionCommand) {
+      name = (command as RemoteApplicationDescriptionCommand).applicationName;
     } else if (command is RemoteAbstractDialogCommand) {
       var dialogCommand:RemoteAbstractDialogCommand = command as RemoteAbstractDialogCommand;
       var dialogButtons:Array = [];
@@ -395,7 +403,7 @@ public class DefaultFlexController implements IRemotePeerRegistry, IActionHandle
       closeDialog();
     } else if (command is RemoteInitCommand) {
       var initCommand:RemoteInitCommand = command as RemoteInitCommand;
-      this._applicationName = initCommand.applicationName;
+      this.name = initCommand.applicationName;
       linkBrowserHistory();
       initApplicationFrame(initCommand);
     } else if (command is RemoteWorkspaceDisplayCommand) {
@@ -523,10 +531,11 @@ public class DefaultFlexController implements IRemotePeerRegistry, IActionHandle
     var browserManager:IBrowserManager = BrowserManager.getInstance();
     browserManager.init();
     browserManager.addEventListener(BrowserChangeEvent.BROWSER_URL_CHANGE, function (event:BrowserChangeEvent):void {
-      var decodedFragment:Object = URLUtil.stringToObject(browserManager.fragment);
-      if (decodedFragment["snapshotId"]) {
+      var oldSnapshotId:String = URLUtil.stringToObject(event.lastURL.substr(event.lastURL.lastIndexOf("#") + 1))["snapshotId"];
+      var newSnapshotId:String = URLUtil.stringToObject(event.url.substr(event.url.lastIndexOf("#") + 1))["snapshotId"];
+      if (oldSnapshotId && newSnapshotId && oldSnapshotId != newSnapshotId) {
         var command:RemoteHistoryDisplayCommand = new RemoteHistoryDisplayCommand();
-        command.snapshotId = decodedFragment["snapshotId"];
+        command.snapshotId = newSnapshotId;
         registerCommand(command);
       }
     });
@@ -1503,7 +1512,12 @@ public class DefaultFlexController implements IRemotePeerRegistry, IActionHandle
     ExternalInterface.call("getGeoLocation");
   }
 
-  protected function get name():String {
+  public function set name(name:String):void {
+    this._applicationName = name;
+  }
+
+  [Bindable]
+  public function get name():String {
     return _applicationName;
   }
 }

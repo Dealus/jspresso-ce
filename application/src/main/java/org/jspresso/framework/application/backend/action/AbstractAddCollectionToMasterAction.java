@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
  *
  *  This file is part of the Jspresso framework.
  *
@@ -40,12 +40,12 @@ import org.jspresso.framework.util.bean.IPropertyChangeCapable;
  * master domain object. The only method to be implemented by concrete subclasses
  * to retrieve the instances to be added to the master is :
  * <p>
- * 
+ *
  * <pre>
  * protected abstract List&lt;?&gt;
  *           getAddedComponents(Map&lt;String, Object&gt; context)
  * </pre>
- * 
+ *
  * @author Vincent Vandenschrick
  */
 public abstract class AbstractAddCollectionToMasterAction extends
@@ -85,8 +85,9 @@ public abstract class AbstractAddCollectionToMasterAction extends
       ICollectionAccessor collectionAccessor = getAccessorFactory(context)
           .createCollectionPropertyAccessor(
               collectionConnector.getId(),
-              collectionConnector.getModelProvider().getModelDescriptor()
-                  .getComponentDescriptor().getComponentContract(),
+              master.getClass()
+              /*collectionConnector.getModelProvider().getModelDescriptor()
+                  .getComponentDescriptor().getComponentContract()*/,
               newComponentContract);
       if (collectionAccessor instanceof IModelDescriptorAware) {
         ((IModelDescriptorAware) collectionAccessor)
@@ -160,7 +161,7 @@ public abstract class AbstractAddCollectionToMasterAction extends
   /**
    * Gets the new entity to add. It is created using the information contained
    * in the context.
-   * 
+   *
    * @param context
    *          the action context.
    * @return the entity to add to the collection.

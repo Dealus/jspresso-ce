@@ -1,20 +1,24 @@
-/**
- * Copyright (c) 2005-2013 Vincent Vandenschrick. All rights reserved.
- * <p>
- * This file is part of the Jspresso framework. Jspresso is free software: you
- * can redistribute it and/or modify it under the terms of the GNU Lesser
- * General Public License as published by the Free Software Foundation, either
- * version 3 of the License, or (at your option) any later version. Jspresso is
- * distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details. You should have received a copy of the GNU Lesser General Public
- * License along with Jspresso. If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Copyright (c) 2005-2016 Vincent Vandenschrick. All rights reserved.
+ *
+ *  This file is part of the Jspresso framework.
+ *
+ *  Jspresso is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Jspresso is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 qx.Class.define("org.jspresso.framework.view.qx.RComponentTableCellEditor", {
-  extend: qx.core.Object,
-  implement: [qx.ui.table.ICellEditorFactory],
+  extend: qx.core.Object, implement: [qx.ui.table.ICellEditorFactory],
 
 
   /**
@@ -32,11 +36,7 @@ qx.Class.define("org.jspresso.framework.view.qx.RComponentTableCellEditor", {
 
 
   members: {
-    __viewFactory: null,
-    __rComponent: null,
-    __actionHandler: null,
-    __currentBinding: null,
-    __currentCellState: null,
+    __viewFactory: null, __rComponent: null, __actionHandler: null, __currentBinding: null, __currentCellState: null,
 
     // interface implementation
     createCellEditor: function (cellInfo) {
@@ -62,39 +62,48 @@ qx.Class.define("org.jspresso.framework.view.qx.RComponentTableCellEditor", {
       if (state.getBindings()) {
         state.removeAllBindings();
       }
-      this.__currentBinding = this.__currentCellState.bind("value", state, "value");
+      this.__currentBinding = this.__currentCellState.bind("value", state, "value", {
+        converter: function (value) {
+          return value === "" ? null : value;
+        }
+      });
       this.__actionHandler.setCurrentViewStateGuid(this.__currentCellState.getGuid(),
           this.__currentCellState.getPermId());
       var editorWidget = this.__viewFactory.createComponent(this.__rComponent, false);
       editorWidget.addListener("disappear", this.__cleanCurrentCellBinding, this);
-      state.addListener("changeValue", function () {
-        cellInfo.table.stopEditing();
+      state.addListenerOnce("changeValue", function (e) {
+        if (e.getData() === null) {
+          this.__currentCellState.setValue(e.getData());
+        }
+        table.stopEditing();
       }, this);
 
       var editor;
       if (!(editorWidget instanceof qx.ui.container.Composite) && !(editorWidget instanceof qx.ui.form.TextArea)) {
         editor = new qx.ui.container.Composite(new qx.ui.layout.VBox().set({
-          alignX: "center",
-          alignY: "middle"
+          alignX: "center", alignY: "middle"
         })).set({
-              focusable: true
-            });
-        // propagate focus
-        editor.addListener("focus", function () {
-          editorWidget.focus();
-        });
-        // propagate active state
-        editor.addListener("activate", function () {
-          editorWidget.activate();
+          focusable: true
         });
         editorWidget.setAllowStretchY(false, false);
-        if (!editorWidget instanceof qx.ui.form.CheckBox) {
+        if (editorWidget instanceof qx.ui.form.CheckBox) {
+          editorWidget.addListenerOnce("appear", function (e) {
+            editorWidget.setValue(!editorWidget.getValue());
+          });
+        } else {
+          // propagate focus
+          editor.addListener("focus", function () {
+            editorWidget.focus();
+          });
+          // propagate active state
+          editor.addListener("activate", function () {
+            editorWidget.activate();
+          });
           editorWidget.setAllowStretchX(true, true);
         }
         editorWidget.setMaxWidth(null);
         editorWidget.setWidth(null);
         editorWidget.setMinWidth(0);
-        //editorWidget.setAlignX("center");
         editorWidget.setAlignY("middle");
         editor.add(editorWidget);
       } else {
@@ -111,6 +120,79 @@ qx.Class.define("org.jspresso.framework.view.qx.RComponentTableCellEditor", {
           });
         }
       }
+      editor.addListener("keypress", function (e) {
+        var timer = qx.util.TimerManager.getInstance();
+        var iden = e.getKeyIdentifier();
+        if (iden == "Tab") {
+          e.stop();
+          editorWidget.blur();
+          if (editorWidget instanceof qx.ui.form.DateField) {
+            // Forces synchronization of the date field
+            editorWidget.setValue(editorWidget.getValue());
+          }
+          timer.start(function (userData, timerId) {
+            if (table.isEditing()) {
+              table.stopEditing();
+            }
+            var columnCount = table.getTableModel().getColumnCount();
+            var rowCount = table.getTableModel().getRowCount();
+            col += (e.isShiftPressed() ? -1 : 1);
+            if (col < 0) {
+              row -= 1;
+              col = columnCount - 1;
+            } else if (col > columnCount - 1) {
+              row += 1;
+              col = 0;
+            }
+            if (row >= 0 && row < rowCount && col >= 0 && col < columnCount) {
+              table.setFocusedCell(col, row, true);
+              table.updateContent();
+              // Breaks LOVs
+              //table.startEditing();
+            }
+          }, 0, this, null, 0);
+          e.stopPropagation();
+        } else if (iden == 'Enter') {
+          e.stop();
+          editorWidget.blur();
+          if (editorWidget instanceof qx.ui.form.DateField) {
+            // Forces synchronization of the date field
+            editorWidget.setValue(editorWidget.getValue());
+          }
+          timer.start(function (userData, timerId) {
+            if (table.isEditing()) {
+              table.stopEditing();
+            }
+          }, 0, this, null, 0);
+          e.stopPropagation();
+        }
+      }, this);
+      editor.addListener("focusout", function (e) {
+        var relatedTarget = e.getRelatedTarget();
+        var timer = qx.util.TimerManager.getInstance();
+        if (relatedTarget != null && relatedTarget != table && !qx.ui.core.Widget.contains(editor, relatedTarget)) {
+          timer.start(function (userData, timerId) {
+            if (table.isEditing()) {
+              table.stopEditing();
+            }
+          }, 0, this, null, 0);
+        } else if (relatedTarget == table) {
+          if (this.__rComponent instanceof org.jspresso.framework.gui.remote.RActionField) {
+            // Edition is completely handled by the action field and the value will be updated afterwards.
+            table.cancelEditing();
+          } else {
+            // This is a hack to prevent default stopEditing() to occur before the state of the editor is actually
+            // updated.
+            table.setEnabled(false);
+            timer.start(function (userData, timerId) {
+              table.setEnabled(true);
+              if (table.isEditing()) {
+                table.stopEditing();
+              }
+            }, 0, this, null, 0);
+          }
+        }
+      }, this);
       return editor;
     },
 

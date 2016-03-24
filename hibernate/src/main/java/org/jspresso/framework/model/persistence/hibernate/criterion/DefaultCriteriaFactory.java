@@ -18,7 +18,9 @@
  */
 package org.jspresso.framework.model.persistence.hibernate.criterion;
 
+import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -29,6 +31,7 @@ import java.util.Set;
 import org.hibernate.criterion.CriteriaSpecification;
 import org.hibernate.criterion.Criterion;
 import org.hibernate.criterion.DetachedCriteria;
+import org.hibernate.criterion.Disjunction;
 import org.hibernate.criterion.Junction;
 import org.hibernate.criterion.MatchMode;
 import org.hibernate.criterion.Order;
@@ -38,7 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.jspresso.framework.application.action.AbstractActionContextAware;
-import org.jspresso.framework.application.backend.persistence.hibernate.HibernateHelper;
+import org.jspresso.framework.application.backend.action.persistence.hibernate.QueryEntitiesAction;
 import org.jspresso.framework.model.component.IPropertyTranslation;
 import org.jspresso.framework.model.component.IQueryComponent;
 import org.jspresso.framework.model.component.query.ComparableQueryStructure;
@@ -197,57 +200,57 @@ public class DefaultCriteriaFactory extends AbstractActionContextAware implement
           (ComparableQueryStructure) aQueryComponent, componentDescriptor, aQueryComponent, context));
     } else {
       String translationsPath = AbstractComponentDescriptor.getComponentTranslationsDescriptorTemplate().getName();
-      String translationsAlias = componentDescriptor.getComponentContract().getSimpleName() + "_" + translationsPath;
+      String translationsAlias = currentCriteria.getAlias() + "_" + componentDescriptor.getComponentContract().getSimpleName() + "_" + translationsPath;
       if (componentDescriptor.isTranslatable()) {
         rootCriteria.getSubCriteriaFor(currentCriteria, translationsPath, translationsAlias, JoinType.LEFT_OUTER_JOIN);
       }
       for (Map.Entry<String, Object> property : aQueryComponent.entrySet()) {
-        IPropertyDescriptor propertyDescriptor = componentDescriptor.getPropertyDescriptor(property.getKey());
+        String propertyName = property.getKey();
+        Object propertyValue = property.getValue();
+        IPropertyDescriptor propertyDescriptor = componentDescriptor.getPropertyDescriptor(propertyName);
         if (propertyDescriptor != null) {
           boolean isEntityRef = false;
           if (componentDescriptor.isEntity() && aQueryComponent.containsKey(IEntity.ID)) {
             isEntityRef = true;
           }
-          if ((!PropertyViewDescriptorHelper.isComputed(componentDescriptor, property.getKey()) || (
+          if ((!PropertyViewDescriptorHelper.isComputed(componentDescriptor, propertyName) || (
               propertyDescriptor instanceof IStringPropertyDescriptor
                   && ((IStringPropertyDescriptor) propertyDescriptor).isTranslatable())) && (!isEntityRef || IEntity.ID
-              .equals(property.getKey()))) {
-            String prefixedProperty = PropertyHelper.toJavaBeanPropertyName(property.getKey());
+              .equals(propertyName))) {
+            String prefixedProperty = PropertyHelper.toJavaBeanPropertyName(propertyName);
             if (path != null) {
               prefixedProperty = path + "." + prefixedProperty;
             }
-            if (property.getValue() instanceof IEntity) {
-              if (!((IEntity) property.getValue()).isPersistent()) {
+            if (propertyValue instanceof IEntity) {
+              if (!((IEntity) propertyValue).isPersistent()) {
                 abort = true;
               } else {
-                completeCriteria(currentCriteria, Restrictions.eq(prefixedProperty, property.getValue()));
+                completeCriteria(currentCriteria, Restrictions.eq(prefixedProperty, propertyValue));
               }
-            } else if (property.getValue() instanceof Boolean && (isTriStateBooleanSupported() || (Boolean) property
-                .getValue())) {
-              completeCriteria(currentCriteria, Restrictions.eq(prefixedProperty, property.getValue()));
-            } else if (property.getValue() instanceof String) {
-              if (IEntity.ID.equalsIgnoreCase(property.getKey())) {
-                completeCriteria(currentCriteria, createIdRestriction(propertyDescriptor, prefixedProperty,
-                    property.getValue(), componentDescriptor, aQueryComponent, context));
-              } else {
-                completeCriteriaWithTranslations(currentCriteria, translationsPath, translationsAlias, property,
-                    propertyDescriptor, prefixedProperty, getBackendController(context).getLocale(),
-                    componentDescriptor, aQueryComponent, context);
-              }
-            } else if (property.getValue() instanceof Number || property.getValue() instanceof Date) {
-              completeCriteria(currentCriteria, Restrictions.eq(prefixedProperty, property.getValue()));
-            } else if (property.getValue() instanceof EnumQueryStructure) {
+            } else if (propertyValue instanceof Boolean && (isTriStateBooleanSupported() || (Boolean) propertyValue)) {
+              completeCriteria(currentCriteria, Restrictions.eq(prefixedProperty, propertyValue));
+            } else if(IEntity.ID.equalsIgnoreCase(propertyName)) {
+              completeCriteria(currentCriteria,
+                  createIdRestriction(propertyDescriptor, prefixedProperty, propertyValue, componentDescriptor,
+                      aQueryComponent, context));
+            } else if (propertyValue instanceof String) {
+              completeCriteriaWithTranslations(currentCriteria, translationsPath, translationsAlias, property,
+                  propertyDescriptor, prefixedProperty, getBackendController(context).getLocale(), componentDescriptor,
+                  aQueryComponent, context);
+            } else if (propertyValue instanceof Number || propertyValue instanceof Date) {
+              completeCriteria(currentCriteria, Restrictions.eq(prefixedProperty, propertyValue));
+            } else if (propertyValue instanceof EnumQueryStructure) {
               completeCriteria(currentCriteria, createEnumQueryStructureRestriction(prefixedProperty,
-                  ((EnumQueryStructure) property.getValue())));
-            } else if (property.getValue() instanceof IQueryComponent) {
-              IQueryComponent joinedComponent = ((IQueryComponent) property.getValue());
+                  ((EnumQueryStructure) propertyValue)));
+            } else if (propertyValue instanceof IQueryComponent) {
+              IQueryComponent joinedComponent = ((IQueryComponent) propertyValue);
               if (!isQueryComponentEmpty(joinedComponent, propertyDescriptor)) {
                 if (joinedComponent.isInlineComponent()/* || path != null */) {
                   // the joined component is an inline component so we must use
                   // dot nested properties. Same applies if we are in a nested
                   // path i.e. already on an inline component.
                   abort = abort || completeCriteria(rootCriteria, currentCriteria, prefixedProperty,
-                      (IQueryComponent) property.getValue(), context);
+                      (IQueryComponent) propertyValue, context);
                 } else {
                   // the joined component is an entity so we must use
                   // nested criteria; unless the autoComplete property
@@ -285,9 +288,9 @@ public class DefaultCriteriaFactory extends AbstractActionContextAware implement
                   }
                 }
               }
-            } else if (property.getValue() != null) {
+            } else if (propertyValue != null) {
               // Unknown property type. Assume equals.
-              completeCriteria(currentCriteria, Restrictions.eq(prefixedProperty, property.getValue()));
+              completeCriteria(currentCriteria, Restrictions.eq(prefixedProperty, propertyValue));
             }
           }
         }
@@ -429,14 +432,19 @@ public class DefaultCriteriaFactory extends AbstractActionContextAware implement
    *     the context
    * @return the created criterion or null if no criterion necessary.
    */
+  @SuppressWarnings("unchecked")
   protected Criterion createIdRestriction(IPropertyDescriptor propertyDescriptor, String prefixedProperty,
                                           Object propertyValue, IComponentDescriptor<?> componentDescriptor,
                                           IQueryComponent queryComponent, Map<String, Object> context) {
-    if (propertyValue instanceof String) {
-      return createStringRestriction(propertyDescriptor, prefixedProperty, (String) propertyValue, componentDescriptor,
-          queryComponent, context);
+    if (propertyValue instanceof Collection<?>) {
+      return QueryEntitiesAction.createEntityIdsInCriterion((Collection<Serializable>) propertyValue, 100);
     } else {
-      return Restrictions.eq(prefixedProperty, propertyValue);
+      if (propertyValue instanceof String) {
+        return createStringRestriction(propertyDescriptor, prefixedProperty, (String) propertyValue, componentDescriptor,
+            queryComponent, context);
+      } else {
+        return Restrictions.eq(prefixedProperty, propertyValue);
+      }
     }
   }
 

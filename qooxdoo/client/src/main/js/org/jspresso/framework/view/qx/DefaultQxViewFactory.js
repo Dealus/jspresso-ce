@@ -17,6 +17,11 @@
  *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/**
+ * @asset(org/jspresso/framework/*.png)
+ * @asset(org/jspresso/framework/htmleditor/*.png)
+ */
+
 qx.Class.define("org.jspresso.framework.view.qx.DefaultQxViewFactory", {
   extend: org.jspresso.framework.view.qx.AbstractQxViewFactory,
 
@@ -25,8 +30,6 @@ qx.Class.define("org.jspresso.framework.view.qx.DefaultQxViewFactory", {
     __FIELD_MAX_CHAR_COUNT: 32,
     __NUMERIC_FIELD_MAX_CHAR_COUNT: 16,
     __COLUMN_MAX_CHAR_COUNT: 12,
-    __DATE_CHAR_COUNT: 10,
-    __TIME_CHAR_COUNT: 6,
 
     _hexColorToQxColor: function (hexColor) {
       if (hexColor) {
@@ -154,7 +157,8 @@ qx.Class.define("org.jspresso.framework.view.qx.DefaultQxViewFactory", {
           instanceof org.jspresso.framework.gui.remote.RLabel || remoteComponent
           instanceof org.jspresso.framework.gui.remote.RTimeField || remoteComponent
           instanceof org.jspresso.framework.gui.remote.RComboBox || remoteComponent
-          instanceof org.jspresso.framework.gui.remote.RCheckBox) {
+          instanceof org.jspresso.framework.gui.remote.RCheckBox || remoteComponent
+          instanceof org.jspresso.framework.gui.remote.RColorField) {
         return this._decorateWithAsideActions(component, remoteComponent, false);
       } else {
         return this._decorateWithToolbars(component, remoteComponent);
@@ -271,8 +275,7 @@ qx.Class.define("org.jspresso.framework.view.qx.DefaultQxViewFactory", {
      */
     _createTimeField: function (remoteTimeField) {
       var timeField = this._createFormattedField(remoteTimeField);
-      this._sizeMaxComponentWidth(timeField, remoteTimeField,
-          org.jspresso.framework.view.qx.DefaultQxViewFactory.__TIME_CHAR_COUNT);
+      this._sizeMaxComponentWidthFromText(timeField, remoteTimeField, "00:00:00");
       return timeField;
     },
 
@@ -416,9 +419,7 @@ qx.Class.define("org.jspresso.framework.view.qx.DefaultQxViewFactory", {
       remoteTimeField.setMillisecondsAware(remoteDateField.getMillisecondsAware());
       remoteTimeField.useDateDto(true);
       dateTimeField.add(this.createComponent(remoteTimeField, false));
-      this._sizeMaxComponentWidth(dateTimeField, remoteDateField,
-          org.jspresso.framework.view.qx.DefaultQxViewFactory.__DATE_CHAR_COUNT
-          + org.jspresso.framework.view.qx.DefaultQxViewFactory.__TIME_CHAR_COUNT + 4);
+      this._sizeMaxComponentWidth(dateTimeField, remoteDateField, "00/00/0000 000 00:00:00");
       return dateTimeField;
     },
 
@@ -1310,8 +1311,8 @@ qx.Class.define("org.jspresso.framework.view.qx.DefaultQxViewFactory", {
         form.add(component, {
           row: compRow, column: compCol, rowSpan: compRowSpan, colSpan: compColSpan
         });
-        if (compColSpan > 1 && component.getMaxWidth() > 0
-            && (formLayout.getColumnMaxWidth(compCol) == Infinity || formLayout.getColumnMaxWidth(compCol) < component.getMaxWidth())) {
+        if (compColSpan == 1 && component.getMaxWidth() > 0 && (formLayout.getColumnMaxWidth(compCol) == Infinity
+            || formLayout.getColumnMaxWidth(compCol) < component.getMaxWidth())) {
           formLayout.setColumnMaxWidth(compCol, component.getMaxWidth());
         }
 
@@ -1552,7 +1553,7 @@ qx.Class.define("org.jspresso.framework.view.qx.DefaultQxViewFactory", {
             maxTr = tr;
           }
         }
-        this._sizeMaxComponentWidthFromText(comboBox, remoteComboBox, maxTr);
+        this._sizeMaxComponentWidthFromText(comboBox, remoteComboBox, maxTr + "_");
         var extraWidth = 25;
         if (iconDim) {
           extraWidth += iconDim.getWidth();
@@ -1975,6 +1976,13 @@ qx.Class.define("org.jspresso.framework.view.qx.DefaultQxViewFactory", {
           component.setAlignY("middle");
           actionField.add(component, {
             flex: 1
+          });
+
+          // propagate focus
+          actionField.addListener("focus", function (e) {
+            if (component.isFocusable()) {
+              component.focus();
+            }
           });
         }
         var modelController;
@@ -2496,17 +2504,20 @@ qx.Class.define("org.jspresso.framework.view.qx.DefaultQxViewFactory", {
      * @param remoteLabel {org.jspresso.framework.gui.remote.RLabel}
      */
     _createLabel: function (remoteLabel) {
-      var atom = new qx.ui.basic.Atom();
-      var label = atom.getChildControl("label");
+      var labelComponent = new qx.ui.basic.Atom();
+      var label = labelComponent.getChildControl("label");
       var state = remoteLabel.getState();
+      if (remoteLabel.getIcon()) {
+        labelComponent.setIcon(remoteLabel.getIcon().getImageUrlSpec());
+      }
       if (state) {
-        atom.setAppearance("dynamicatom");
-        atom.getChildControl("label").setSelectable(true);
+        labelComponent.setAppearance("dynamicatom");
+        label.setSelectable(true);
         var modelController = new qx.data.controller.Object(state);
         if (remoteLabel instanceof org.jspresso.framework.gui.remote.RLink && remoteLabel.getAction()) {
           this._getRemotePeerRegistry().register(remoteLabel.getAction());
-          atom.setRich(true);
-          modelController.addTarget(atom, "label", "value", false, {
+          labelComponent.setRich(true);
+          modelController.addTarget(labelComponent, "label", "value", false, {
             converter: function (modelValue, model) {
               if (modelValue) {
                 return "<u><a href='javascript:'>" + modelValue + "</a></u>";
@@ -2514,30 +2525,45 @@ qx.Class.define("org.jspresso.framework.view.qx.DefaultQxViewFactory", {
               return modelValue;
             }
           });
-          atom.addListener("tap", function (event) {
+          labelComponent.addListener("tap", function (event) {
             this._getActionHandler().execute(remoteLabel.getAction());
           }, this);
         } else {
-          atom.setRich(true);
-          modelController.addTarget(atom, "label", "value", false, {
+          labelComponent.setRich(true);
+          modelController.addTarget(labelComponent, "label", "value", false, {
             converter: function (modelValue, model) {
               return modelValue;
             }
           });
         }
         // Do not size dynamic labels
-        // this._sizeMaxComponentWidth(atom, remoteLabel, remoteLabel.getMaxLength())
+        // this._sizeMaxComponentWidth(labelComponent, remoteLabel, remoteLabel.getMaxLength());
+
+        // The following does not work with labelComponent labels since they cannot grow inside the labelComponent. We must use a wrapper.
+        //this._configureHorizontalAlignment(label, remoteLabel.getHorizontalAlignment());
+        var wrapper = new qx.ui.container.Composite(new qx.ui.layout.Dock());
+        var alignment = remoteLabel.getHorizontalAlignment();
+        if (alignment == "LEFT") {
+          wrapper.add(labelComponent, {
+            edge: "west"
+          });
+        } else if (alignment == "CENTER") {
+          wrapper.add(labelComponent, {
+            edge: "center"
+          });
+        } else if (alignment == "RIGHT") {
+          wrapper.add(labelComponent, {
+            edge: "east"
+          });
+        }
+        labelComponent = wrapper;
       } else {
         var labelText = remoteLabel.getLabel();
         labelText = org.jspresso.framework.util.html.HtmlUtil.replaceNewlines(labelText);
-        atom.setLabel(labelText);
-        atom.setRich(org.jspresso.framework.util.html.HtmlUtil.isHtml(labelText));
+        labelComponent.setLabel(labelText);
+        labelComponent.setRich(org.jspresso.framework.util.html.HtmlUtil.isHtml(labelText));
       }
-      this._configureHorizontalAlignment(label, remoteLabel.getHorizontalAlignment());
-      if (remoteLabel.getIcon()) {
-        atom.setIcon(remoteLabel.getIcon().getImageUrlSpec());
-      }
-      return atom;
+      return labelComponent;
     },
 
     /**
@@ -2581,8 +2607,9 @@ qx.Class.define("org.jspresso.framework.view.qx.DefaultQxViewFactory", {
       modelController.addTarget(dateField, "enabled", "writable", false);
       var ps = remoteDateField.getPreferredSize();
       remoteDateField.setPreferredSize(null);
-      this._sizeMaxComponentWidth(dateField, remoteDateField,
-          org.jspresso.framework.view.qx.DefaultQxViewFactory.__DATE_CHAR_COUNT);
+      // Add "000" for icon
+      this._sizeMaxComponentWidthFromText(dateField, remoteDateField,
+          "00/00/0000 000");
       remoteDateField.setPreferredSize(ps);
       return dateField;
     },

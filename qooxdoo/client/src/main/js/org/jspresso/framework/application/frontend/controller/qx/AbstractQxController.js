@@ -16,6 +16,10 @@
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with Jspresso.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+/**
+ * @asset(org/jspresso/framework/*.png)
+ */
 qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.AbstractQxController", {
   extend: qx.core.Object,
 
@@ -826,7 +830,7 @@ qx.Class.define("org.jspresso.framework.application.frontend.controller.qx.Abstr
       }
       for (var guid in this.__postponedEditionCommands) {
         var delayedEditionCommand = this.__postponedEditionCommands[guid];
-        this._handleEditCommand(this.getRegistered(delayedEditionCommand.getTargetPeerGuid()).retrievePeer());
+        this._handleEditCommand(this.getRegistered(delayedEditionCommand.getTargetPeerGuid()));
       }
     },
 

@@ -125,10 +125,17 @@ qx.Class.define("org.jspresso.framework.view.qx.RComponentTableCellEditor", {
         var iden = e.getKeyIdentifier();
         if (iden == "Tab") {
           e.stop();
-          editorWidget.blur();
+          // Might be an inner widget of the editorWidget. see bug #106
+          var focusedWidget = qx.ui.core.FocusHandler.getInstance().getFocusedWidget();
+          if (focusedWidget) {
+            focusedWidget.blur();
+          } else {
+            editorWidget.blur();
+          }
           if (editorWidget instanceof qx.ui.form.DateField) {
             // Forces synchronization of the date field
-            editorWidget.setValue(editorWidget.getValue());
+            //editorWidget.setValue(editorWidget.getValue());
+            editorWidget.fireDataEvent("changeValue", this.getValue());
           }
           timer.start(function (userData, timerId) {
             if (table.isEditing()) {
@@ -154,10 +161,16 @@ qx.Class.define("org.jspresso.framework.view.qx.RComponentTableCellEditor", {
           e.stopPropagation();
         } else if (iden == 'Enter') {
           e.stop();
-          editorWidget.blur();
+          // Might be an inner widget of the editorWidget. see bug #106
+          var focusedWidget = qx.ui.core.FocusHandler.getInstance().getFocusedWidget();
+          if (focusedWidget) {
+            focusedWidget.blur();
+          } else {
+            editorWidget.blur();
+          }
           if (editorWidget instanceof qx.ui.form.DateField) {
             // Forces synchronization of the date field
-            editorWidget.setValue(editorWidget.getValue());
+            editorWidget.fireDataEvent("changeValue", this.getValue());
           }
           timer.start(function (userData, timerId) {
             if (table.isEditing()) {
@@ -181,6 +194,10 @@ qx.Class.define("org.jspresso.framework.view.qx.RComponentTableCellEditor", {
             // Edition is completely handled by the action field and the value will be updated afterwards.
             table.cancelEditing();
           } else {
+            if (editorWidget instanceof qx.ui.form.TextField) {
+              // Forces synchronization of the text field
+              editorWidget.fireDataEvent("changeValue", editorWidget.getValue());
+            }
             // This is a hack to prevent default stopEditing() to occur before the state of the editor is actually
             // updated.
             table.setEnabled(false);

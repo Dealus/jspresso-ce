@@ -119,7 +119,19 @@ qx.Theme.define("org.jspresso.framework.theme.Appearance",
           style: function (states, superStyles) {
             return {
               decorator: states.hovered ? superStyles.decorator : undefined,
-              padding: states.hovered ? [2, 4] : [3, 5]
+              padding: states.hovered ? [2, 4] : [3, 5],
+              margin: 2
+            };
+          }
+        },
+
+        "selectbox": {
+          base: true,
+          include: "button-frame",
+          style: function (states) {
+            return {
+              padding: [2, 4],
+              margin: 2
             };
           }
         },
@@ -508,12 +520,7 @@ qx.Theme.define("org.jspresso.framework.theme.Appearance",
 
         "application-split": {
           alias: "splitpane",
-          include: "splitpane",
-          style: function (states) {
-            return {
-              decorator: "transition-box"
-            };
-          }
+          include: "splitpane"
         },
 
         "application-split/splitter": {
@@ -649,7 +656,6 @@ qx.Theme.define("org.jspresso.framework.theme.Appearance",
           style: function (states) {
             return {
               backgroundColor: "app-background",
-              decorator: "transition-box",
               paddingBottom: 10
             }
           }
@@ -759,6 +765,8 @@ qx.Theme.define("org.jspresso.framework.theme.Appearance",
           style: function (states) {
             return {}
           }
-        }
+        },
+
+        "htmlarea": "textarea"
       }
     });

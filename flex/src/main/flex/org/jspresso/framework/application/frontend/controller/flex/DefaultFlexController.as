@@ -70,6 +70,7 @@ import mx.events.CloseEvent;
 import mx.events.FlexEvent;
 import mx.events.IndexChangedEvent;
 import mx.events.MenuEvent;
+import mx.events.PropertyChangeEvent;
 import mx.managers.BrowserManager;
 import mx.managers.IBrowserManager;
 import mx.managers.PopUpManager;
@@ -136,7 +137,6 @@ import org.jspresso.framework.util.remote.registry.BasicRemotePeerRegistry;
 import org.jspresso.framework.util.remote.registry.IRemotePeerRegistry;
 import org.jspresso.framework.view.flex.CollapsibleAccordion;
 import org.jspresso.framework.view.flex.DefaultFlexViewFactory;
-import org.jspresso.framework.view.flex.EnhancedButton;
 import org.jspresso.framework.view.flex.EnhancedTabNavigator;
 import org.jspresso.framework.view.flex.RIconMenuBarItem;
 import org.jspresso.framework.view.flex.RIconMenuItemRenderer;
@@ -220,20 +220,17 @@ public class DefaultFlexController implements IRemotePeerRegistry, IActionHandle
     var wasEnabled:Boolean = _changeNotificationsEnabled;
     try {
       _changeNotificationsEnabled = false;
-
-      var valueListener:Function = function (value:Object):void {
-        valueUpdated(remoteValueState);
-      };
-      BindingUtils.bindSetter(valueListener, remoteValueState, "value", true);
-
-      if (remoteValueState is RemoteCompositeValueState) {
-        var selectedIndicesListener:Function = function (selectedIndices:Array):void {
-          selectedIndicesUpdated(remoteValueState as RemoteCompositeValueState);
-        };
-        BindingUtils.bindSetter(selectedIndicesListener, remoteValueState, "selectedIndices", true);
-      }
+      remoteValueState.addEventListener(PropertyChangeEvent.PROPERTY_CHANGE, valueStateHandler, false, 0, true);
     } finally {
       _changeNotificationsEnabled = wasEnabled;
+    }
+  }
+
+  protected function valueStateHandler(event:PropertyChangeEvent):void {
+    if (event.property == "value") {
+      valueUpdated(event.source as RemoteValueState);
+    } else if (event.property == "selectedIndices") {
+      selectedIndicesUpdated(event.source as RemoteCompositeValueState);
     }
   }
 
@@ -466,14 +463,16 @@ public class DefaultFlexController implements IRemotePeerRegistry, IActionHandle
       } else if (command is RemoteChildrenCommand) {
         var children:ListCollectionView = (targetPeer as RemoteCompositeValueState).children;
         _postponedChildrenNotificationBuffer.push(targetPeer.guid);
+        var removedChild:RemoteValueState;
         if ((command as RemoteChildrenCommand).remove) {
-          for each(var removedChild:RemoteValueState in (command as RemoteChildrenCommand).children) {
+          for each(removedChild in (command as RemoteChildrenCommand).children) {
             if (isRegistered(removedChild.guid)) {
               removedChild = getRegistered(removedChild.guid) as RemoteValueState;
               var removedIndex:int = children.getItemIndex(removedChild);
               if (removedIndex >= 0) {
                 children.removeItemAt(removedIndex);
               }
+              removedChild.parent = null;
             }
           }
         } else {
@@ -489,7 +488,10 @@ public class DefaultFlexController implements IRemotePeerRegistry, IActionHandle
             }
             for (var toRemove:int = children.length - 1; toRemove >= 0; toRemove--) {
               if (newChildren.getItemIndex(children.getItemAt(toRemove)) < 0) {
-                children.removeItemAt(toRemove);
+                removedChild = children.removeItemAt(toRemove) as RemoteValueState;
+                if (removedChild) {
+                  removedChild.parent = null;
+                }
               }
             }
             var index:int = 0;
@@ -497,12 +499,17 @@ public class DefaultFlexController implements IRemotePeerRegistry, IActionHandle
               var existingIndex:int = children.getItemIndex(newChild);
               if (existingIndex != index) {
                 if (existingIndex >= 0) {
-                  children.removeItemAt(existingIndex);
+                  removedChild = children.removeItemAt(existingIndex) as RemoteValueState;
+                  if (removedChild) {
+                    removedChild.parent = null;
+                  }
                 }
                 children.addItemAt(newChild, index);
+                newChild.parent = (targetPeer as RemoteCompositeValueState);
               }
               index++;
             }
+            (command as RemoteChildrenCommand).children.removeAll();
           } else {
             children.removeAll();
           }
@@ -926,7 +933,9 @@ public class DefaultFlexController implements IRemotePeerRegistry, IActionHandle
       _postponedSelectionCommands = {};
       _postponedEditionCommands = [];
       try {
-        handleCommands(resultEvent.result as IList);
+        var result:IList = resultEvent.result as IList;
+        handleCommands(result);
+        result.removeAll();
       } finally {
         checkPostponedCommandsCompletion();
         _postponedCommands = null;

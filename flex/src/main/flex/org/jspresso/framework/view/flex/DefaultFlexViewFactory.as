@@ -166,7 +166,6 @@ import org.openscales.core.style.Style;
 import org.openscales.geometry.basetypes.Bounds;
 import org.openscales.geometry.basetypes.Location;
 import org.openscales.geometry.basetypes.Size;
-import org.openscales.proj4as.ProjProjection;
 import org.sepy.ui.CheckBoxExtended;
 
 public class DefaultFlexViewFactory {
@@ -715,7 +714,8 @@ public class DefaultFlexViewFactory {
         || remoteComponent is RLabel
         || remoteComponent is RTimeField
         || remoteComponent is RComboBox
-        || remoteComponent is RCheckBox) {
+        || remoteComponent is RCheckBox
+        || remoteComponent is RColorField) {
       decorator = decorateWithAsideActions(component, remoteComponent, false);
     } else {
       decorator = decorateWithToolbars(component, remoteComponent);
@@ -923,8 +923,8 @@ public class DefaultFlexViewFactory {
         markers.addFeature(marker);
       }
     };
-    BindingUtils.bindSetter(updateMapLocation, longitudeState, "value");
-    BindingUtils.bindSetter(updateMapLocation, latitudeState, "value");
+    BindingUtils.bindSetter(updateMapLocation, longitudeState, "value", true);
+    BindingUtils.bindSetter(updateMapLocation, latitudeState, "value", true);
 
     var wrapper:UIComponent = new UIComponent();
     wrapper.addEventListener(Event.RESIZE, function(e:Event):void {
@@ -1126,7 +1126,7 @@ public class DefaultFlexViewFactory {
     var decorated:UIComponent = component;
     if(remoteComponent.actionLists) {
       var actionField:HBox = new HBox();
-      syncSizes(actionField, component);
+      //syncSizes(actionField, component);
       actionField.styleName = "actionField";
       actionField.regenerateStyleCache(false);
       actionField.horizontalScrollPolicy = ScrollPolicy.OFF;
@@ -1188,7 +1188,7 @@ public class DefaultFlexViewFactory {
           }
           textInput.editable = (value as Boolean);
         };
-        BindingUtils.bindSetter(updateEditability, remoteState, "writable");
+        BindingUtils.bindSetter(updateEditability, remoteState, "writable", true);
       } else {
         textInput.editable = false;
       }
@@ -1206,6 +1206,7 @@ public class DefaultFlexViewFactory {
       };
 
       var triggerAction:Function = function (event:Event):void {
+        //trace("####################### triggerAction #####################")
         var tf:TextInput = (event.currentTarget as TextInput);
         var inputText:String = tf.text;
         if (inputText == null || inputText.length == 0) {
@@ -1236,7 +1237,8 @@ public class DefaultFlexViewFactory {
       // specifically.
       // textInput.addEventListener(FocusEvent.FOCUS_OUT, triggerAction);
       textInput.addEventListener(FocusEvent.FOCUS_OUT, function (event:FocusEvent):void {
-        if (event.relatedObject is DataGrid) {
+        if ( event.relatedObject == null /* An external window has been focused */
+          || event.relatedObject is DataGrid /* The datagrid has been focused */) {
           triggerAction(event);
         }
       });
@@ -2420,7 +2422,7 @@ public class DefaultFlexViewFactory {
         state.leadingIndex = -1;
         state.selectedIndices = null;
       }
-    }, list, "selectedItems", false);
+    }, list, "selectedItems", true);
     BindingUtils.bindSetter(function (selectedIndices:Array):void {
       if (selectedIndices != null && selectedIndices.length > 0) {
         // work on items to translate indices independently of list sorting state.
@@ -2950,7 +2952,7 @@ public class DefaultFlexViewFactory {
       }
       textArea.editable = value as Boolean;
     };
-    BindingUtils.bindSetter(updateEditability, remoteState, "writable");
+    BindingUtils.bindSetter(updateEditability, remoteState, "writable", true);
     var updateModel:Function = function (event:Event):void {
       var text:String = (event.currentTarget as TextArea).text;
       if (text != null && text.length == 0) {
@@ -3196,7 +3198,7 @@ public class DefaultFlexViewFactory {
       }
       textInput.editable = value as Boolean;
     };
-    BindingUtils.bindSetter(updateEditability, remoteState, "writable");
+    BindingUtils.bindSetter(updateEditability, remoteState, "writable", true);
 
     var updateView:Function = function (value:Object):void {
       if (value == null) {

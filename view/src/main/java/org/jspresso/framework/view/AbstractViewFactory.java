@@ -84,8 +84,10 @@ import org.jspresso.framework.model.descriptor.IStringPropertyDescriptor;
 import org.jspresso.framework.model.descriptor.ITextPropertyDescriptor;
 import org.jspresso.framework.model.descriptor.ITimeAwarePropertyDescriptor;
 import org.jspresso.framework.model.descriptor.ITimePropertyDescriptor;
+import org.jspresso.framework.model.descriptor.basic.BasicReferencePropertyDescriptor;
 import org.jspresso.framework.security.EAuthorization;
 import org.jspresso.framework.security.ISecurable;
+import org.jspresso.framework.security.ISecurityHandler;
 import org.jspresso.framework.security.ISecurityHandlerAware;
 import org.jspresso.framework.security.ISubjectAware;
 import org.jspresso.framework.util.collection.IPageable;
@@ -153,7 +155,7 @@ import org.jspresso.framework.view.descriptor.basic.PropertyViewDescriptorHelper
  */
 @SuppressWarnings("UnusedParameters")
 public abstract class AbstractViewFactory<E, F, G> implements
-    IViewFactory<E, F, G> {
+IViewFactory<E, F, G> {
 
   /**
    * {@code BOLD_FONT}.
@@ -180,7 +182,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
    */
   protected static final Long   TEMPLATE_DURATION         = (long) (EDuration.ONE_SECOND.getMillis() + EDuration
       .ONE_MINUTE.getMillis() + EDuration.ONE_HOUR.getMillis() + EDuration.ONE_DAY.getMillis() + EDuration.ONE_WEEK
-                                                                                                          .getMillis());
+      .getMillis());
 
   /**
    * {@code TEMPLATE_TIME}.
@@ -210,6 +212,8 @@ public abstract class AbstractViewFactory<E, F, G> implements
   private String formLabelMandatoryPropertyColorHex   = "0xFFFF0000";
   private String tableHeaderMandatoryPropertyColorHex = null;
 
+  private List<IPropertyViewModifier> propertyViewModifiers;
+
   private boolean liveDebugUI = false;
 
   /**
@@ -230,11 +234,29 @@ public abstract class AbstractViewFactory<E, F, G> implements
   /**
    * {@inheritDoc}
    */
-  @SuppressWarnings("ConstantConditions")
   @Override
   public IView<E> createView(IViewDescriptor viewDescriptor, IActionHandler actionHandler, Locale locale) {
+    if(viewDescriptor.getModelDescriptor() instanceof IComponentDescriptor) {
+      return createView((IComponentDescriptor<?>) viewDescriptor.getModelDescriptor(), viewDescriptor, actionHandler, locale);
+    }
+    if(viewDescriptor.getModelDescriptor() instanceof BasicReferencePropertyDescriptor) {
+      return createView(((BasicReferencePropertyDescriptor<?>) viewDescriptor.getModelDescriptor()).getReferencedDescriptor(), viewDescriptor, actionHandler, locale);
+    }
+    else return createView(null, viewDescriptor, actionHandler, locale);
+  }
+
+
+  /**
+   * {@inheritDoc}
+   */
+  @SuppressWarnings("ConstantConditions")
+  @Override
+  public IView<E> createView(IComponentDescriptor<?> sourceComponent, IViewDescriptor viewDescriptor, IActionHandler actionHandler, Locale locale) {
     try {
       actionHandler.pushToSecurityContext(viewDescriptor);
+      if (viewDescriptor instanceof IPropertyViewDescriptor) {
+        completePropertyView(sourceComponent, (IPropertyViewDescriptor) viewDescriptor, actionHandler);
+      }
       IView<E> view = createCustomView(viewDescriptor, actionHandler, locale);
       if (view == null) {
         if (viewDescriptor instanceof IComponentViewDescriptor) {
@@ -261,6 +283,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
           view = createCompositeView((ICompositeViewDescriptor) viewDescriptor, actionHandler, locale);
         }
       }
+
       if (view != null) {
         view.getConnector().setSecurityHandler(actionHandler);
         boolean locallyWritable = !viewDescriptor.isReadOnly();
@@ -295,10 +318,12 @@ public abstract class AbstractViewFactory<E, F, G> implements
             }
           }
         }
+
         finishComponentConfiguration(viewDescriptor, actionHandler, locale, view);
         decorateWithActions(viewDescriptor, actionHandler, locale, view);
         decorateWithBorder(view, actionHandler, locale);
         view.getConnector().setModelDescriptor(viewDescriptor.getModelDescriptor());
+
         if (!actionHandler.isAccessGranted(viewDescriptor)) {
           view.setPeer(createSecurityComponent());
         }
@@ -307,8 +332,17 @@ public abstract class AbstractViewFactory<E, F, G> implements
         view = createEmptyView(viewDescriptor, actionHandler, locale);
       }
       return view;
-    } finally {
+    } 
+    finally {
       actionHandler.restoreLastSecurityContextSnapshot();
+    }
+  }
+
+  private void completePropertyView(IComponentDescriptor<?> sourceComponent, IPropertyViewDescriptor propertyViewDescriptor, ISecurityHandler securityHandler) {
+    if(propertyViewModifiers != null) {
+      for(IPropertyViewModifier propertyViewEnhancer : propertyViewModifiers) {
+        propertyViewEnhancer.completePropertyView(sourceComponent, propertyViewDescriptor, securityHandler);
+      }
     }
   }
 
@@ -326,21 +360,21 @@ public abstract class AbstractViewFactory<E, F, G> implements
    * @return the ready to assemble pagination view.
    */
   protected IView<E> createPaginationView(IViewDescriptor paginationViewDescriptor, IView<E> view,
-                                          IActionHandler actionHandler, Locale locale) {
-    final IView<E> paginationView = createView(paginationViewDescriptor, actionHandler, locale);
+      IActionHandler actionHandler, Locale locale) {
+    final IView<E> paginationView = createView(null, paginationViewDescriptor, actionHandler, locale);
     (view.getConnector()).addPropertyChangeListener(IValueConnector.MODEL_CONNECTOR_PROPERTY,
         new PropertyChangeListener() {
 
-          @Override
-          public void propertyChange(PropertyChangeEvent evt) {
-            if (evt.getNewValue() != null) {
-              getMvcBinder().bind(paginationView.getConnector(),
-                  ((IValueConnector) evt.getNewValue()).getParentConnector());
-            } else {
-              getMvcBinder().bind(paginationView.getConnector(), null);
-            }
-          }
-        });
+      @Override
+      public void propertyChange(PropertyChangeEvent evt) {
+        if (evt.getNewValue() != null) {
+          getMvcBinder().bind(paginationView.getConnector(),
+              ((IValueConnector) evt.getNewValue()).getParentConnector());
+        } else {
+          getMvcBinder().bind(paginationView.getConnector(), null);
+        }
+      }
+    });
     return paginationView;
   }
 
@@ -526,6 +560,18 @@ public abstract class AbstractViewFactory<E, F, G> implements
     this.saveBinaryPropertyAsFileAction = saveBinaryPropertyAsFileAction;
   }
 
+
+
+  /**
+   * Sets the propertyViewmodifiers.
+   *
+   * @param propertyViewmodifiers
+   *          the propertyViewmodifiers to set.
+   */
+  public void setPropertyViewModifiers(List<IPropertyViewModifier> propertyViewModifiers) {
+    this.propertyViewModifiers = propertyViewModifiers;
+  }
+
   /**
    * Adds a card in a card view.
    *
@@ -593,8 +639,8 @@ public abstract class AbstractViewFactory<E, F, G> implements
                 masterView.getConnector());
             if (masterView.getConnector() instanceof ICollectionConnector) {
               mainConnector
-                  .setCollectionConnectorProvider((ICollectionConnector) masterView
-                      .getConnector());
+              .setCollectionConnectorProvider((ICollectionConnector) masterView
+                  .getConnector());
             }
             viewConnector = mainConnector;
           } else {
@@ -618,8 +664,8 @@ public abstract class AbstractViewFactory<E, F, G> implements
                   detailView.getConnector());
               if (detailView.getConnector() instanceof ICollectionConnector) {
                 wrapper
-                    .setCollectionConnectorProvider((ICollectionConnector) detailView
-                        .getConnector());
+                .setCollectionConnectorProvider((ICollectionConnector) detailView
+                    .getConnector());
               }
               detailConnector = wrapper;
             } else {
@@ -776,7 +822,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
                 childConnector,
                 ((ICompositeValueConnector) parentConnector
                     .getModelConnector()).getChildConnector(childConnector
-                    .getId()));
+                        .getId()));
           } else {
             getMvcBinder().bind(childConnector, null);
           }
@@ -975,7 +1021,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
         IViewDescriptor childCardViewDescriptor = cardViewDescriptor
             .getCardViewDescriptor(cardName);
         if (childCardViewDescriptor != null) {
-          childCardView = createView(childCardViewDescriptor, actionHandler, locale);
+          childCardView = createView(cardViewConnector.getModelProvider().getModelDescriptor().getComponentDescriptor(), childCardViewDescriptor, actionHandler, locale);
           addCard(cardView, childCardView, cardName);
         }
       }
@@ -1006,9 +1052,9 @@ public abstract class AbstractViewFactory<E, F, G> implements
               .getModelConnector();
           if (modelConnector != null
               && cardViewConnector
-                  .getModelDescriptor()
-                  .getModelType()
-                  .isAssignableFrom(childCardViewDescriptor.getModelDescriptor().getModelType())) {
+              .getModelDescriptor()
+              .getModelType()
+              .isAssignableFrom(childCardViewDescriptor.getModelDescriptor().getModelType())) {
             modelConnector.setModelDescriptor(childCardViewDescriptor
                 .getModelDescriptor());
           }
@@ -1193,7 +1239,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
    * @return the created component view.
    */
   protected abstract IView<E> createMapView(IMapViewDescriptor viewDescriptor, IActionHandler actionHandler,
-                                                  Locale locale);
+      Locale locale);
 
   /**
    * Computes the property name used to compute a property view dynamic label
@@ -1210,7 +1256,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
    * or null if none or if the label is a static one.
    */
   protected String computePropertyDynamicLabel(IComponentDescriptor<?> modelDescriptor, IViewDescriptor viewDescriptor,
-                                               IPropertyDescriptor propertyDescriptor) {
+      IPropertyDescriptor propertyDescriptor) {
     String dynamicLabelProperty = null;
     String labelKey = null;
     if (viewDescriptor.getName() != null) {
@@ -1533,7 +1579,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
    * @return the date format.
    */
   protected SimpleDateFormat createDateFormat(IDatePropertyDescriptor propertyDescriptor, TimeZone timeZone,
-                                              ITranslationProvider translationProvider, Locale locale) {
+      ITranslationProvider translationProvider, Locale locale) {
     SimpleDateFormat format;
     String formatPattern;
     if (propertyDescriptor.getFormatPattern() != null) {
@@ -1579,7 +1625,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
    * @return the default first day of week.
    */
   protected int getFirstDayOfWeek(IDatePropertyDescriptor propertyDescriptor,
-                                  ITranslationProvider translationProvider, Locale locale) {
+      ITranslationProvider translationProvider, Locale locale) {
     return translationProvider.getFirstDayOfWeek(locale);
   }
 
@@ -1595,7 +1641,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
    * @return the default decimal separator.
    */
   protected String getDecimalSeparator(IDecimalPropertyDescriptor propertyDescriptor,
-                                       ITranslationProvider translationProvider, Locale locale) {
+      ITranslationProvider translationProvider, Locale locale) {
     return translationProvider.getDecimalSeparator(locale);
   }
 
@@ -1611,7 +1657,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
    * @return the default thousands separator.
    */
   protected String getThousandsSeparator(INumberPropertyDescriptor propertyDescriptor,
-                                       ITranslationProvider translationProvider, Locale locale) {
+      ITranslationProvider translationProvider, Locale locale) {
     return translationProvider.getThousandsSeparator(locale);
   }
 
@@ -1677,8 +1723,8 @@ public abstract class AbstractViewFactory<E, F, G> implements
       translations = new HashMap<>();
       for (String value : propertyDescriptor.getEnumerationValues()) {
         translations
-            .put(value, propertyDescriptor.getI18nValue(value,
-                translationProvider, locale));
+        .put(value, propertyDescriptor.getI18nValue(value,
+            translationProvider, locale));
       }
     }
     IFormatter<Object, String> formatter = new EnumerationFormatter(
@@ -1724,7 +1770,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
   }
 
   private void applyDecimalFormatSymbols(DecimalFormat format, INumberPropertyDescriptor propertyDescriptor,
-                                         ITranslationProvider translationProvider, Locale locale) {
+      ITranslationProvider translationProvider, Locale locale) {
     DecimalFormatSymbols symbols = format.getDecimalFormatSymbols();
     if (propertyDescriptor instanceof IDecimalPropertyDescriptor) {
       String decimalSeparator = getDecimalSeparator((IDecimalPropertyDescriptor) propertyDescriptor,
@@ -1868,8 +1914,8 @@ public abstract class AbstractViewFactory<E, F, G> implements
     if (propertyDescriptor instanceof IDatePropertyDescriptor) {
       TimeZone timeZone = ((IDatePropertyDescriptor) propertyDescriptor).isTimeZoneAware() ?
           actionHandler.getClientTimeZone() : actionHandler.getReferenceTimeZone();
-      return createDateFormatter((IDatePropertyDescriptor) propertyDescriptor,
-          timeZone, actionHandler, locale);
+          return createDateFormatter((IDatePropertyDescriptor) propertyDescriptor,
+              timeZone, actionHandler, locale);
     }
     if (propertyDescriptor instanceof ITimePropertyDescriptor) {
       return createTimeFormatter((ITimePropertyDescriptor) propertyDescriptor,
@@ -2016,7 +2062,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
       return getConnectorFactory().createCompositeValueConnector(
           renderedProperty,
           ((IReferencePropertyDescriptor<?>) propertyDescriptor)
-              .getReferencedDescriptor().getToStringProperty());
+          .getReferencedDescriptor().getToStringProperty());
     }
     return getConnectorFactory().createValueConnector(
         propertyDescriptor.getName());
@@ -2055,7 +2101,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
     IDisplayableAction listOfValueAction;
     if (propertyViewDescriptor instanceof IReferencePropertyViewDescriptor
         && ((IReferencePropertyViewDescriptor) propertyViewDescriptor)
-            .getLovAction() != null) {
+        .getLovAction() != null) {
       listOfValueAction = ((IReferencePropertyViewDescriptor) propertyViewDescriptor)
           .getLovAction();
     } else {
@@ -2428,7 +2474,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
    * @return the time format.
    */
   protected SimpleDateFormat createTimeFormat(ITimePropertyDescriptor propertyDescriptor,
-                                              ITranslationProvider translationProvider, Locale locale) {
+      ITranslationProvider translationProvider, Locale locale) {
     String formatPattern;
     if (propertyDescriptor.getFormatPattern() != null) {
       formatPattern = propertyDescriptor.getFormatPattern();
@@ -2508,7 +2554,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
           .createConfigurableCollectionConnectorListProvider(
               ModelRefPropertyConnector.THIS_PROPERTY,
               rootDescriptor
-                  .getNodeGroupDescriptor().getRenderedProperty());
+              .getNodeGroupDescriptor().getRenderedProperty());
       List<ICollectionConnectorProvider> subtreeConnectors = new ArrayList<>();
       if (((ICompositeTreeLevelDescriptor) rootDescriptor)
           .getChildrenDescriptors() != null) {
@@ -2536,7 +2582,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
           .createConfigurableCollectionConnectorProvider(
               ModelRefPropertyConnector.THIS_PROPERTY,
               rootDescriptor
-                  .getNodeGroupDescriptor().getRenderedProperty());
+              .getNodeGroupDescriptor().getRenderedProperty());
       ITreeLevelDescriptor childDescriptor = ((ISimpleTreeLevelDescriptor) rootDescriptor)
           .getChildDescriptor();
       if (childDescriptor != null) {
@@ -2558,20 +2604,20 @@ public abstract class AbstractViewFactory<E, F, G> implements
 
     if (connector instanceof AbstractCompositeValueConnector) {
       ((AbstractCompositeValueConnector) connector)
-          .setDisplayValue(viewDescriptor.getI18nName(actionHandler, locale));
+      .setDisplayValue(viewDescriptor.getI18nName(actionHandler, locale));
       ((AbstractCompositeValueConnector) connector)
-          .setDisplayDescription(viewDescriptor.getI18nDescription(
-              actionHandler, locale));
+      .setDisplayDescription(viewDescriptor.getI18nDescription(
+          actionHandler, locale));
       ((AbstractCompositeValueConnector) connector)
-          .setDisplayIcon(viewDescriptor.getIcon());
+      .setDisplayIcon(viewDescriptor.getIcon());
       ((AbstractCompositeValueConnector) connector)
-          .setIconImageURLProvider(viewDescriptor.getIconImageURLProvider());
+      .setIconImageURLProvider(viewDescriptor.getIconImageURLProvider());
     }
 
     //noinspection ConstantConditions
     if (connector instanceof ICollectionConnectorListProvider) {
       ((ICollectionConnectorListProvider) connector)
-          .setTracksChildrenSelection(true);
+      .setTracksChildrenSelection(true);
     }
 
     if (connector instanceof IItemSelectable
@@ -2946,7 +2992,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
       return getTemplateValue(((IReferencePropertyDescriptor<?>) propertyDescriptor)
           .getReferencedDescriptor().getPropertyDescriptor(
               ((IReferencePropertyDescriptor<?>) propertyDescriptor)
-                  .getReferencedDescriptor().getToStringProperty()));
+              .getReferencedDescriptor().getToStringProperty()));
     }
     return null;
   }
@@ -3020,7 +3066,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
       viewDescriptor.setColumnViewDescriptors(columnViewDescriptors);
       viewDescriptor.setName(propertyDescriptor.getName());
       viewDescriptor
-          .setPreferredSize(propertyViewDescriptor.getPreferredSize());
+      .setPreferredSize(propertyViewDescriptor.getPreferredSize());
       view = createTableView(viewDescriptor, actionHandler, locale);
     } else {
       BasicListViewDescriptor viewDescriptor = new BasicListViewDescriptor();
@@ -3031,7 +3077,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
       }
       viewDescriptor.setName(propertyDescriptor.getName());
       viewDescriptor
-          .setPreferredSize(propertyViewDescriptor.getPreferredSize());
+      .setPreferredSize(propertyViewDescriptor.getPreferredSize());
       view = createListView(viewDescriptor, actionHandler, locale);
     }
     if (view instanceof BasicView) {
@@ -3112,7 +3158,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
               .createComponentCollection(
                   ((ICollectionDescriptorProvider<?>) viewSelectionConnector
                       .getModelDescriptor()).getCollectionDescriptor()
-                      .getCollectionInterface());
+                  .getCollectionInterface());
           List<?> elementsList = new ArrayList<Object>(elements);
           for (int iselectedIndex : selectedIndices) {
             if (iselectedIndex >= 0 && iselectedIndex < elementsList.size()) {
@@ -3138,7 +3184,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
    *          the locale.
    */
   public void finishCollectionViewConfiguration(IView<E> view, ICollectionViewDescriptor viewDescriptor,
-                                                IActionHandler actionHandler, Locale locale) {
+      IActionHandler actionHandler, Locale locale) {
     if (view != null) {
       if (viewDescriptor.getSelectionModelDescriptor() != null) {
         ICollectionDescriptorProvider<?> selectionModelDescriptor = ((ICollectionDescriptorProvider<?>) viewDescriptor
@@ -3165,9 +3211,9 @@ public abstract class AbstractViewFactory<E, F, G> implements
       }
       if (viewDescriptor.getItemSelectionAction() != null) {
         ((IItemSelectable) view.getConnector())
-            .addItemSelectionListener(new ConnectorActionAdapter<>(
-                viewDescriptor.getItemSelectionAction(), getActionFactory(),
-                actionHandler, view));
+        .addItemSelectionListener(new ConnectorActionAdapter<>(
+            viewDescriptor.getItemSelectionAction(), getActionFactory(),
+            actionHandler, view));
       }
       if (viewDescriptor.getPaginationViewDescriptor() != null) {
         IView<E> paginationView = createPaginationView(
@@ -3235,7 +3281,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
         .createConfigurableCollectionConnectorListProvider(
             nodeGroupModelDescriptor.getName() + "Element",
             subtreeViewDescriptor.getNodeGroupDescriptor()
-                .getRenderedProperty());
+            .getRenderedProperty());
     List<ICollectionConnectorProvider> subtreeConnectors = new ArrayList<>();
     if (subtreeViewDescriptor.getChildrenDescriptors() != null
         && depth < viewDescriptor.getMaxDepth()) {
@@ -3257,19 +3303,19 @@ public abstract class AbstractViewFactory<E, F, G> implements
       }
     }
     nodeGroupPrototypeConnector
-        .setCollectionConnectorProviders(subtreeConnectors);
+    .setCollectionConnectorProviders(subtreeConnectors);
     if (nodeGroupPrototypeConnector instanceof AbstractCompositeValueConnector) {
       ((AbstractCompositeValueConnector) nodeGroupPrototypeConnector)
-          .setDisplayValue(subtreeViewDescriptor.getNodeGroupDescriptor()
-              .getI18nName(actionHandler, locale));
+      .setDisplayValue(subtreeViewDescriptor.getNodeGroupDescriptor()
+          .getI18nName(actionHandler, locale));
       ((AbstractCompositeValueConnector) nodeGroupPrototypeConnector)
-          .setDisplayDescription(subtreeViewDescriptor.getNodeGroupDescriptor()
-              .getI18nDescription(actionHandler, locale));
+      .setDisplayDescription(subtreeViewDescriptor.getNodeGroupDescriptor()
+          .getI18nDescription(actionHandler, locale));
       ((AbstractCompositeValueConnector) nodeGroupPrototypeConnector)
-          .setDisplayIcon(subtreeViewDescriptor.getNodeGroupDescriptor()
-              .getIcon());
+      .setDisplayIcon(subtreeViewDescriptor.getNodeGroupDescriptor()
+          .getIcon());
       ((AbstractCompositeValueConnector) nodeGroupPrototypeConnector)
-          .setIconImageURLProvider(viewDescriptor.getIconImageURLProvider());
+      .setIconImageURLProvider(viewDescriptor.getIconImageURLProvider());
     }
 
     ICollectionConnector nodeGroupCollectionConnector = connectorFactory
@@ -3314,16 +3360,16 @@ public abstract class AbstractViewFactory<E, F, G> implements
     }
     if (connector instanceof AbstractCompositeValueConnector) {
       ((AbstractCompositeValueConnector) connector)
-          .setDisplayValue(subtreeViewDescriptor.getNodeGroupDescriptor()
-              .getI18nName(actionHandler, locale));
+      .setDisplayValue(subtreeViewDescriptor.getNodeGroupDescriptor()
+          .getI18nName(actionHandler, locale));
       ((AbstractCompositeValueConnector) connector)
-          .setDisplayDescription(subtreeViewDescriptor.getNodeGroupDescriptor()
-              .getI18nDescription(actionHandler, locale));
+      .setDisplayDescription(subtreeViewDescriptor.getNodeGroupDescriptor()
+          .getI18nDescription(actionHandler, locale));
       ((AbstractCompositeValueConnector) connector)
-          .setDisplayIcon(subtreeViewDescriptor.getNodeGroupDescriptor()
-              .getIcon());
+      .setDisplayIcon(subtreeViewDescriptor.getNodeGroupDescriptor()
+          .getIcon());
       ((AbstractCompositeValueConnector) connector)
-          .setIconImageURLProvider(viewDescriptor.getIconImageURLProvider());
+      .setIconImageURLProvider(viewDescriptor.getIconImageURLProvider());
     }
     return connector;
   }
@@ -3337,7 +3383,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
         .createConfigurableCollectionConnectorProvider(
             nodeGroupModelDescriptor.getName() + "Element",
             subtreeViewDescriptor.getNodeGroupDescriptor()
-                .getRenderedProperty());
+            .getRenderedProperty());
     ITreeLevelDescriptor childDescriptor = subtreeViewDescriptor
         .getChildDescriptor();
     if (childDescriptor != null && depth < viewDescriptor.getMaxDepth()
@@ -3349,23 +3395,23 @@ public abstract class AbstractViewFactory<E, F, G> implements
         nodeGroupPrototypeConnector.addChildConnector(childConnector.getId(),
             childConnector);
         nodeGroupPrototypeConnector
-            .setCollectionConnectorProvider(childConnector);
+        .setCollectionConnectorProvider(childConnector);
       } finally {
         actionHandler.restoreLastSecurityContextSnapshot();
       }
     }
     if (nodeGroupPrototypeConnector instanceof AbstractCompositeValueConnector) {
       ((AbstractCompositeValueConnector) nodeGroupPrototypeConnector)
-          .setDisplayValue(subtreeViewDescriptor.getNodeGroupDescriptor()
-              .getI18nName(actionHandler, locale));
+      .setDisplayValue(subtreeViewDescriptor.getNodeGroupDescriptor()
+          .getI18nName(actionHandler, locale));
       ((AbstractCompositeValueConnector) nodeGroupPrototypeConnector)
-          .setDisplayDescription(subtreeViewDescriptor.getNodeGroupDescriptor()
-              .getI18nDescription(actionHandler, locale));
+      .setDisplayDescription(subtreeViewDescriptor.getNodeGroupDescriptor()
+          .getI18nDescription(actionHandler, locale));
       ((AbstractCompositeValueConnector) nodeGroupPrototypeConnector)
-          .setDisplayIcon(subtreeViewDescriptor.getNodeGroupDescriptor()
-              .getIcon());
+      .setDisplayIcon(subtreeViewDescriptor.getNodeGroupDescriptor()
+          .getIcon());
       ((AbstractCompositeValueConnector) nodeGroupPrototypeConnector)
-          .setIconImageURLProvider(viewDescriptor.getIconImageURLProvider());
+      .setIconImageURLProvider(viewDescriptor.getIconImageURLProvider());
     }
     ICollectionConnector nodeGroupCollectionConnector = connectorFactory
         .createCollectionConnector(nodeGroupModelDescriptor.getName(), mvcBinder, nodeGroupPrototypeConnector);
@@ -3414,14 +3460,14 @@ public abstract class AbstractViewFactory<E, F, G> implements
   /**
    * Connector action adapter.
    *
-     * @author Vincent Vandenschrick
+   * @author Vincent Vandenschrick
    * @param <E>
    *          the actual component type.
    * @param <F>
    *          the actual action type.
    */
   protected static class ConnectorActionAdapter<E, F> implements
-      IItemSelectionListener, IValueChangeListener, ICloneable {
+  IItemSelectionListener, IValueChangeListener, ICloneable {
 
     private final IAction              actionDelegate;
     private final IActionFactory<F, E> actionFactory;
@@ -3484,10 +3530,10 @@ public abstract class AbstractViewFactory<E, F, G> implements
           && !ObjectUtils.equals(evt.getNewValue(),
               modelConnector.getConnectorValue())) {
         if (modelConnector.getConnectorValue() instanceof Map<?, ?>
-            && modelConnector.getModelDescriptor() instanceof IReferencePropertyDescriptor<?>
-            && viewConnector instanceof IRenderableCompositeValueConnector
-            && ((IRenderableCompositeValueConnector) viewConnector)
-                .getRenderingConnector() != null) {
+        && modelConnector.getModelDescriptor() instanceof IReferencePropertyDescriptor<?>
+        && viewConnector instanceof IRenderableCompositeValueConnector
+        && ((IRenderableCompositeValueConnector) viewConnector)
+        .getRenderingConnector() != null) {
           modelConnector = ((IRenderableCompositeValueConnector) viewConnector)
               .getRenderingConnector().getModelConnector();
         }
@@ -3499,7 +3545,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
           public void valueChange(ValueChangeEvent modelEvt) {
             // This is a 1 shot event.
             ((IValueChangeSource) modelEvt.getSource())
-                .removeValueChangeListener(this);
+            .removeValueChangeListener(this);
             triggerAction(modelEvt.getOldValue());
           }
         });
@@ -3585,7 +3631,7 @@ public abstract class AbstractViewFactory<E, F, G> implements
             .remove(columnPref[0]);
         if (userColumn != null) {
           userColumnViewDescriptors
-              .put(userColumn, (Integer) columnPref[1]);
+          .put(userColumn, (Integer) columnPref[1]);
         }
       }
       // Add remaining new columns
@@ -3780,8 +3826,8 @@ public abstract class AbstractViewFactory<E, F, G> implements
    *     the action handler
    */
   protected void triggerTabSelectionAction(int selectedIndex, E tabComponent,
-                                           ITabViewDescriptor tabViewDescriptor, BasicIndexedView<E> tabView,
-                                           IActionHandler actionHandler) {
+      ITabViewDescriptor tabViewDescriptor, BasicIndexedView<E> tabView,
+      IActionHandler actionHandler) {
     IAction tabSelectionAction = tabViewDescriptor.getTabSelectionAction();
     if (tabSelectionAction != null) {
       Map<String, Object> actionContext = getActionFactory().createActionContext(actionHandler, tabView,

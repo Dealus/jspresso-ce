@@ -21,6 +21,7 @@ package org.jspresso.framework.model.component.query;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 import org.jspresso.framework.model.component.IQueryComponent;
@@ -42,11 +43,12 @@ public abstract class QueryComponentSerializationUtil {
    *
    * @param query component to serialize
    * @param complement additional map of string to serialize
+   * @param overridedFilter 
    * @return the string representation of the query component
    * @throws IOException the iO exception
    */
   public static String serializeFilter(IQueryComponent query,
-      LinkedHashMap<String, Serializable> complement)
+      LinkedHashMap<String, Serializable> complement, Map<String, Object> overridedFilter)
   throws IOException {
 
     // temporary map (too heavy to be serialized, will use a simple table)
@@ -151,6 +153,10 @@ public abstract class QueryComponentSerializationUtil {
         (Serializable[]) SerializationUtil.deserializeFromBase64(filterBase64, true);
 
     return filters;
+  }
+
+  public static String getFromMap(Map<String, Object> filterOverload, String string) {
+    return null;
   }
 
 

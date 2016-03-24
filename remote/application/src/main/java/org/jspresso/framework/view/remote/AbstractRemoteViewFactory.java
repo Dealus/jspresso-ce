@@ -1475,7 +1475,7 @@ public abstract class AbstractRemoteViewFactory extends ControllerAwareViewFacto
               "Property descriptor [" + propertyName + "] does not exist for model descriptor " + viewDescriptor
                   .getModelDescriptor().getName() + ".");
         }
-        IView<RComponent> propertyView = createView(propertyViewDescriptor, actionHandler, locale);
+        IView<RComponent> propertyView = createView(modelDescriptor, propertyViewDescriptor, actionHandler, locale);
         // Fix bug 782
         propertyView.getPeer().setIcon(null);
         propertyView.setParent(view);

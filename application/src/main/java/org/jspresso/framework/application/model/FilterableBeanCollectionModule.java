@@ -761,7 +761,7 @@ public class FilterableBeanCollectionModule extends BeanCollectionModule
    * @throws IOException the iO exception
    */
   public String serializeCriteria() throws IOException {
-    return QueryComponentSerializationUtil.serializeFilter(getFilter(), new LinkedHashMap<String, Serializable>());
+    return QueryComponentSerializationUtil.serializeFilter(getFilter(), new LinkedHashMap<String, Serializable>(), null);
   }
 
 

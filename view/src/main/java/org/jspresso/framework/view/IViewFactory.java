@@ -22,6 +22,7 @@ import java.util.Locale;
 
 import org.jspresso.framework.action.IActionHandler;
 import org.jspresso.framework.binding.IConfigurableConnectorFactory;
+import org.jspresso.framework.model.descriptor.IComponentDescriptor;
 import org.jspresso.framework.view.descriptor.IViewDescriptor;
 
 /**
@@ -39,7 +40,8 @@ public interface IViewFactory<E, F, G> {
 
   /**
    * Creates a new view from a view descriptor.
-   *
+   * @param sourceComponent
+   *          the component descriptor being the {@code viewDescriptor}'s one
    * @param viewDescriptor
    *          the view descriptor being the root of the view hierarchy to be
    *          constructed.
@@ -50,9 +52,24 @@ public interface IViewFactory<E, F, G> {
    *          the locale the view must use for i18n.
    * @return the created view.
    */
-  IView<E> createView(IViewDescriptor viewDescriptor,
+  IView<E> createView(IComponentDescriptor<?> sourceComponent, IViewDescriptor viewDescriptor,
       IActionHandler actionHandler, Locale locale);
+  
+  /**
+   * Creates a new view from a view descriptor.
+   * @param viewDescriptor
+   *          the view descriptor being the root of the view hierarchy to be
+   *          constructed.
+   * @param actionHandler
+   *          the object responsible for executing the view actions (generally
+   *          the frontend controller itself).
+   * @param locale
+   *          the locale the view must use for i18n.
+   * @return the created view.
+   */
+  IView<E> createView(IViewDescriptor viewDescriptor, IActionHandler actionHandler, Locale locale);
 
+  
   /**
    * Gets the action factory.
    *
@@ -117,5 +134,6 @@ public interface IViewFactory<E, F, G> {
    */
   void refreshCardView(IMapView<E> cardView, boolean unbindPrevious, IActionHandler actionHandler,
       Locale locale);
+
 
 }
